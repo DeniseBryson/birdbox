@@ -43,3 +43,6 @@ Spannungsbereich: 3,0 V -3,7 V
 Testdaten:
 Spannung: 3,0 V Strom: 160 mA
 Spannung: 3,7 V Strom: 220 mA
+
+# Camera Case
+The Camera Case was used from https://www.thingiverse.com/thing:2317664 and modified, to make it attachable to the backboard.
