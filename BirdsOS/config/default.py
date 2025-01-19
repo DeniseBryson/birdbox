@@ -1,43 +1,45 @@
 """
-Default configuration for BirdsOS
+Default configuration settings for BirdsOS
 """
 
-# Storage Configuration
-STORAGE_LIMIT = 10 * 1024 * 1024 * 1024  # 10GB
-STORAGE_WARNING_THRESHOLD = 0.85
+# Server settings
+HOST = '0.0.0.0'
+PORT = 5000
+DEBUG = True
+SECRET_KEY = 'development-key'  # Change in production
 
-# Camera Configuration
-CAMERA_RESOLUTION = (1280, 720)
-CAMERA_FRAMERATE = 30
-CAMERA_FORMAT = 'h264'
-CAMERA_BUFFER_TIME = 10  # seconds before trigger
-CAMERA_POST_EVENT_TIME = 20  # seconds after motor stop
-
-# Motor Configuration
-MOTOR_MIN_FREQUENCY = 10
-MOTOR_MAX_FREQUENCY = 100
-MOTOR_DEFAULT_FREQUENCY = 50
-MOTOR_PIN_1 = 18
-MOTOR_PIN_2 = 23
-
-# Sensor Configuration
-OPTICAL_GATE_1_PIN = 24
-OPTICAL_GATE_2_PIN = 25
-SENSOR_SENSITIVITY = 0.75
-FEEDING_DELAY = 5  # seconds
-
-# Database Configuration
-SQLITE_DATABASE_PATH = 'birdsos.db'
-BACKUP_ENABLED = True
-BACKUP_INTERVAL = 24 * 60 * 60  # 24 hours
-
-# Logging Configuration
+# Logging settings
 LOG_LEVEL = 'INFO'
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 LOG_FILE = 'birdsos.log'
 
-# Web Interface Configuration
-SECRET_KEY = 'development-key'  # Change in production
-DEBUG = True
-HOST = '0.0.0.0'
-PORT = 5000
+# Camera settings
+CAMERA_RESOLUTION = (640, 480)
+CAMERA_FPS = 30
+VIDEO_BUFFER_SECONDS = 10  # Pre/post event buffer in seconds
+
+# Storage settings
+MAX_STORAGE_GB = 10
+STORAGE_WARNING_THRESHOLD = 0.85  # 85% of max storage
+
+# GPIO settings
+MOTOR_PIN = 18
+SENSOR_PINS = [23, 24, 25]
+
+# Notification settings
+TELEGRAM_ENABLED = False
+TELEGRAM_BOT_TOKEN = None
+TELEGRAM_CHAT_ID = None
+
+# Data retention settings
+DATA_RETENTION_DAYS = 30
+RECORDING_RETENTION_DAYS = 7
+
+# Research data settings
+RESEARCH_DATA_INTERVAL = 3600  # 1 hour in seconds
+EXPORT_FORMAT = 'csv'
+
+# Database settings
+SQLITE_DATABASE_PATH = 'birdsos.db'
+BACKUP_ENABLED = True
+BACKUP_INTERVAL = 24 * 60 * 60  # 24 hours

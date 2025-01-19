@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Camera Simulator{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Camera Feed</h5>
+                </div>
+                <div class="card-body">
+                    <div class="video-container">
+                        <img src="{{ url_for('video_feed') }}" class="img-fluid" alt="Camera Feed">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Recording Controls</h5>
+                </div>
+                <div class="card-body">
+                    <button id="startRecording" class="btn btn-primary mb-2 w-100">Start Recording</button>
+                    <button id="stopRecording" class="btn btn-danger mb-2 w-100" disabled>Stop Recording</button>
+                </div>
+            </div>
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Camera Settings</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="resolution" class="form-label">Resolution</label>
+                        <select id="resolution" class="form-select">
+                            <option value="640,480">640x480</option>
+                            <option value="1280,720">1280x720</option>
+                            <option value="1920,1080">1920x1080</option>
+                        </select>
+                    </div>
+                    <button id="updateSettings" class="btn btn-secondary w-100">Update Settings</button>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Recent Recordings</h5>
+                </div>
+                <div class="card-body">
+                    <div id="recordingsList" class="list-group">
+                        <!-- Recordings will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const startBtn = document.getElementById('startRecording');
+    const stopBtn = document.getElementById('stopRecording');
+    const updateSettingsBtn = document.getElementById('updateSettings');
+    const recordingsList = document.getElementById('recordingsList');
+
+    // Recording controls
+    startBtn.addEventListener('click', async () => {
+        try {
+            const response = await fetch('/api/camera/record/start', {
+                method: 'POST'
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+            }
+        } catch (error) {
+            console.error('Error starting recording:', error);
+        }
+    });
+
+    stopBtn.addEventListener('click', async () => {
+        try {
+            const response = await fetch('/api/camera/record/stop', {
+                method: 'POST'
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                loadRecordings();
+            }
+        } catch (error) {
+            console.error('Error stopping recording:', error);
+        }
+    });
+
+    // Camera settings
+    updateSettingsBtn.addEventListener('click', async () => {
+        const resolution = document.getElementById('resolution').value.split(',').map(Number);
+        try {
+            const response = await fetch('/api/camera/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    resolution: resolution
+                })
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                // Reload the page to refresh video feed with new resolution
+                location.reload();
+            }
+        } catch (error) {
+            console.error('Error updating settings:', error);
+        }
+    });
+
+    // Load recordings
+    async function loadRecordings() {
+        try {
+            const response = await fetch('/api/camera/recordings');
+            const data = await response.json();
+            recordingsList.innerHTML = data.recordings.map(recording => `
+                <div class="list-group-item">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">${recording.timestamp}</h6>
+                        <small>${recording.size}</small>
+                    </div>
+                    <p class="mb-1">Duration: ${recording.duration}s</p>
+                </div>
+            `).join('');
+        } catch (error) {
+            console.error('Error loading recordings:', error);
+        }
+    }
+
+    // Initial load of recordings
+    loadRecordings();
+});
+</script>
+
+<style>
+.video-container {
+    position: relative;
+    width: 100%;
+    padding-top: 75%; /* 4:3 Aspect Ratio */
+    overflow: hidden;
+}
+
+.video-container img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+</style>
+{% endblock %} 
