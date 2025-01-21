@@ -89,4 +89,14 @@ class GPIOMock:
         """
         Get the current state of a pin for debugging
         """
-        return self.pins.get(pin, {'error': 'Pin not setup'}) 
+        return self.pins.get(pin, {'error': 'Pin not setup'})
+        
+    def get_status(self) -> dict:
+        """
+        Get the status of all pins
+        """
+        return {
+            'mode': self.mode,
+            'pins': {pin: {'state': data['state'], 'mode': data['mode']} 
+                    for pin, data in self.pins.items()}
+        } 
