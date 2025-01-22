@@ -1,0 +1,32 @@
+<!-- STABLE -->
+{% extends "base.html" %}
+
+{% block title %}Configuration - BirdsOS{% endblock %}
+
+{% block content %}
+<h1>System Configuration</h1>
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Profiles</h5>
+                <div id="profiles-list">Loading profiles...</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Settings</h5>
+                <div id="settings-panel">Loading settings...</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Configuration functionality will be implemented here
+</script>
+{% endblock %} 

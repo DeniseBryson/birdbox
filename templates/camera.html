@@ -1,0 +1,59 @@
+<!-- STABLE -->
+{% extends "base.html" %}
+
+{% block title %}Camera - BirdsOS{% endblock %}
+
+{% block content %}
+<h1>Camera Control</h1>
+<div class="row mt-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Live Feed</h5>
+                <div id="camera-feed" class="bg-dark text-light p-5 text-center">
+                    Camera feed will appear here
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Controls</h5>
+                <button class="btn btn-primary mb-2 w-100" id="start-recording">Start Recording</button>
+                <button class="btn btn-danger mb-2 w-100" id="stop-recording">Stop Recording</button>
+                <hr>
+                <h6>Recent Recordings</h6>
+                <div id="recordings-list">
+                    No recordings yet
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Camera control functionality will be implemented here
+    document.getElementById('start-recording').addEventListener('click', function() {
+        fetch('/api/v1/camera/record/start', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Recording started:', data);
+        });
+    });
+
+    document.getElementById('stop-recording').addEventListener('click', function() {
+        fetch('/api/v1/camera/record/stop', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Recording stopped:', data);
+        });
+    });
+</script>
+{% endblock %} 

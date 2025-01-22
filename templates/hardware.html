@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Hardware Control - BirdsOS{% endblock %}
+
+{% block content %}
+<h1>Hardware Control</h1>
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">GPIO Status</h5>
+                <div id="gpio-status">Loading GPIO status...</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Motor Control</h5>
+                <div id="motor-status">Loading motor status...</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Hardware control functionality will be implemented here
+</script>
+{% endblock %} 
