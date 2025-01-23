@@ -8,9 +8,11 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">GPIO Control</h5>
-                <p class="card-text">Manage and monitor GPIO pins.</p>
-                <a href="{{ url_for('gpio.control') }}" class="btn btn-primary">Open GPIO Control Panel</a>
+                <h5 class="card-title">GPIO Status</h5>
+                <div id="gpio-status">Loading GPIO status...</div>
+                <div class="mt-3">
+                    <a href="/gpio/" class="btn btn-primary" id="gpio-page-link">GPIO Control Page</a>
+                </div>
             </div>
         </div>
     </div>
@@ -27,139 +29,6 @@
 
 {% block scripts %}
 <script>
-// GPIO Controller class
-class GPIOController {
-    constructor() {
-        this.selectedPin = null;
-        this.setupEventListeners();
-        this.updatePinList();
-        this.startStatusUpdates();
-    }
-    
-    async updatePinList() {
-        try {
-            const response = await fetch('/api/gpio/pins');
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                this.populatePinDropdown(data.pins);
-                this.updatePinStates(data.states);
-            }
-        } catch (error) {
-            console.error('Failed to fetch GPIO pins:', error);
-        }
-    }
-    
-    populatePinDropdown(pins) {
-        const select = document.getElementById('gpio-pin-select');
-        select.innerHTML = '<option value="">Choose a pin...</option>';
-        
-        pins.forEach(pin => {
-            const option = document.createElement('option');
-            option.value = pin;
-            option.textContent = `GPIO ${pin}`;
-            select.appendChild(option);
-        });
-    }
-    
-    updatePinStates(states) {
-        if (this.selectedPin && states[this.selectedPin]) {
-            const state = states[this.selectedPin];
-            this.updatePinStatus(state);
-        }
-    }
-    
-    updatePinStatus(state) {
-        const indicator = document.querySelector('.state-indicator');
-        const text = document.querySelector('.state-text');
-        
-        indicator.className = 'state-indicator';
-        indicator.classList.add(state.state ? 'high' : 'low');
-        
-        text.textContent = `Mode: ${state.mode}, State: ${state.state ? 'HIGH' : 'LOW'}`;
-    }
-    
-    async configurePin(mode) {
-        if (!this.selectedPin) return;
-        
-        try {
-            const response = await fetch('/api/gpio/configure', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    pin: this.selectedPin,
-                    mode: mode
-                })
-            });
-            
-            const data = await response.json();
-            if (data.status === 'success') {
-                this.updatePinStatus(data.state);
-            }
-        } catch (error) {
-            console.error('Failed to configure pin:', error);
-        }
-    }
-    
-    setupEventListeners() {
-        // Pin selection
-        document.getElementById('gpio-pin-select').addEventListener('change', (e) => {
-            this.selectedPin = parseInt(e.target.value);
-            if (this.selectedPin) {
-                this.updatePinList();
-            }
-        });
-        
-        // Mode buttons
-        document.getElementById('set-input').addEventListener('click', () => {
-            this.configurePin('IN');
-        });
-        
-        document.getElementById('set-output').addEventListener('click', () => {
-            this.configurePin('OUT');
-        });
-    }
-    
-    startStatusUpdates() {
-        // Update pin states every 2 seconds
-        setInterval(() => this.updatePinList(), 2000);
-    }
-}
-
-// Initialize GPIO controller when page loads
-document.addEventListener('DOMContentLoaded', () => {
-    const controller = new GPIOController();
-});
+    // Hardware control functionality will be implemented here
 </script>
-
-<style>
-.gpio-controls {
-    padding: 1rem;
-}
-
-.state-indicator {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    margin-right: 8px;
-}
-
-.state-indicator.high {
-    background-color: #28a745;
-}
-
-.state-indicator.low {
-    background-color: #dc3545;
-}
-
-.pin-state {
-    padding: 0.5rem;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    background-color: #f8f9fa;
-}
-</style>
 {% endblock %} 

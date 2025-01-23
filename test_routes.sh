@@ -11,9 +11,16 @@ BASE_URL="http://localhost:5000"
 test_endpoint() {
     local endpoint=$1
     local method=${2:-GET}
+    local data=${3:-""}
+    
     echo -n "Testing $method $endpoint... "
     
-    response=$(curl -s -X $method -w "%{http_code}" "$BASE_URL$endpoint")
+    if [ -n "$data" ]; then
+        response=$(curl -s -X $method -H "Content-Type: application/json" -d "$data" -w "%{http_code}" "$BASE_URL$endpoint")
+    else
+        response=$(curl -s -X $method -w "%{http_code}" "$BASE_URL$endpoint")
+    fi
+    
     http_code=${response: -3}
     response_body=${response:0:${#response}-3}
     
@@ -32,17 +39,22 @@ test_endpoint "/"
 test_endpoint "/camera"
 test_endpoint "/hardware"
 test_endpoint "/config"
-test_endpoint "/maintenance"
-test_endpoint "/analytics"
 
-echo -e "\nTesting API Routes..."
+echo -e "\nTesting Camera API Routes..."
+test_endpoint "/api/v1/camera/status"
+test_endpoint "/api/v1/camera/initialize/0" "POST"
+test_endpoint "/api/v1/camera/stop" "POST"
+
+echo -e "\nTesting GPIO API Routes..."
+test_endpoint "/gpio/"
+test_endpoint "/gpio/api/pins"
+test_endpoint "/gpio/api/configure" "POST" '{"pin": 18, "mode": "OUT"}'
+test_endpoint "/gpio/api/state" "POST" '{"pin": 18, "state": 1}'
+test_endpoint "/gpio/api/state" "POST" '{"pin": 18, "state": 0}'
+test_endpoint "/gpio/api/cleanup" "POST"
+
+echo -e "\nTesting System API Routes..."
 test_endpoint "/api/v1/system/status"
 test_endpoint "/api/v1/system/health"
-test_endpoint "/api/v1/camera/stream"
-test_endpoint "/api/v1/hardware/gpio/status"
-test_endpoint "/api/v1/hardware/motors/status"
-test_endpoint "/api/v1/config/profiles"
-test_endpoint "/api/v1/config/settings"
-test_endpoint "/api/v1/maintenance/food-level"
-test_endpoint "/api/v1/maintenance/storage/status"
-test_endpoint "/api/v1/analytics/statistics" 
+
+echo -e "\nTest Complete!" 

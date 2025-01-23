@@ -1,4 +1,3 @@
-# STABLE
 import pytest
 from app import app
 
@@ -84,4 +83,4 @@ def test_analytics_statistics_api(client):
     """Test analytics statistics API"""
     rv = client.get('/api/v1/analytics/statistics')
     assert rv.status_code == 200
-    assert 'statistics' in rv.json
+    assert 'statistics' in rv.json 

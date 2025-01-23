@@ -1,11 +1,12 @@
-# STABLE
 """
 BirdsOS - Main Application Entry Point
 """
 from flask import Flask, render_template
 from routes.main_routes import main_bp
 from routes.api_routes import api_bp
-from routes.ws_routes import ws_bp, sock
+from features.gpio.routes import gpio_bp
+from features.camera.routes import camera_bp
+from features.camera.ws_routes import ws_bp, sock
 import os
 
 def create_app():
@@ -23,6 +24,8 @@ def create_app():
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix='/api/v1')
     app.register_blueprint(ws_bp, url_prefix='/ws')
+    app.register_blueprint(gpio_bp)
+    app.register_blueprint(camera_bp)
     
     # Register error handlers
     @app.errorhandler(404)
