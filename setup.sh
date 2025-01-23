@@ -3,14 +3,14 @@
 echo "BirdsOS Setup Script"
 echo "===================="
 
+# Get current user
+CURRENT_USER=$(whoami)
+INSTALL_PATH="/home/${CURRENT_USER}/birdbox"
+
 # Check if running on Raspberry Pi
 if ! grep -q "Raspberry Pi" /proc/cpuinfo; then
-    echo "Warning: This script is designed for Raspberry Pi. Some features may not work on other systems."
-fi
-
-# Verify OS is Raspberry Pi OS Lite
-if ! grep -q "lite" /etc/os-release; then
-    echo "Warning: For optimal performance, Raspberry Pi OS Lite is recommended."
+    echo "Error: This script must be run on a Raspberry Pi"
+    exit 1
 fi
 
 # Check for SSH key
@@ -37,6 +37,10 @@ sudo apt-get install -y \
     python3-opencv \
     libatlas-base-dev \
     python3-rpi.gpio \
+    libgstreamer1.0-0 \
+    gstreamer1.0-tools \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
     htop \
     psutil
 
@@ -46,50 +50,54 @@ sudo raspi-config nonint do_camera 0
 sudo raspi-config nonint do_ssh 0
 sudo raspi-config nonint do_i2c 0
 
-# Create full project structure
-echo "Creating project directory structure..."
-mkdir -p ~/BirdsOS/{features,routes,static,templates,tests,logs,recordings}
-mkdir -p ~/BirdsOS/features/{camera,gpio}
-mkdir -p ~/BirdsOS/storage/{videos,data,backups,logs}
+# Create project directory
+echo "Setting up project directory..."
+mkdir -p ${INSTALL_PATH}
+cd ${INSTALL_PATH}
 
 # Clone repository
 echo "Cloning BirdsOS repository (AIgen2 branch)..."
 git clone -b AIgen2 git@github.com:DeniseBryson/birdbox.git .
 
-# Create virtual environment with specific Python version
+# Create required directories
+echo "Creating storage directories..."
+mkdir -p storage/{recordings,logs}
+
+# Create virtual environment
 echo "Setting up Python virtual environment..."
 python3 -m venv venv
 source venv/bin/activate
 
-# Install test dependencies first
-echo "Installing test dependencies..."
-pip install pytest pytest-cov pytest-flask
-
-# Install application dependencies
+# Install Python dependencies
 echo "Installing Python requirements..."
 pip install --upgrade pip
-pip install opencv-python-headless
 pip install -r requirements.txt
 
 # Create environment file if it doesn't exist
 if [ ! -f .env ]; then
+    echo "Calculating available storage space..."
+    # Get total space in GB (using df, filtering root filesystem, and extracting size in KB)
+    TOTAL_SPACE_GB=$(df -k / | awk 'NR==2 {printf "%.0f", $2/1024/1024}')
+    # Calculate 75% of total space
+    MAX_STORAGE_GB=$(($TOTAL_SPACE_GB * 75 / 100))
+    
     echo "Creating environment configuration..."
     cat > .env << EOL
 # BirdsOS Environment Configuration
 FLASK_APP=app.py
 FLASK_ENV=production
 SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
-MAX_CONTENT_LENGTH=16777216  # 16MB as specified in app.py
+MAX_CONTENT_LENGTH=16777216
 
 # Storage Configuration
-STORAGE_PATH=/home/pi/BirdsOS/storage
-MAX_STORAGE_GB=5
-WARNING_THRESHOLD=0.80
+STORAGE_PATH=${INSTALL_PATH}/storage
+MAX_STORAGE_GB=$MAX_STORAGE_GB  # 75% of available SD card space (${TOTAL_SPACE_GB}GB total)
+WARNING_THRESHOLD=0.85
 
 # Camera Configuration
 CAMERA_RESOLUTION_WIDTH=640
 CAMERA_RESOLUTION_HEIGHT=480
-CAMERA_FRAMERATE=30
+CAMERA_FRAMERATE=20
 CAMERA_FORMAT=h264
 CAMERA_BUFFER_TIME=5
 CAMERA_POST_TIME=10
@@ -102,77 +110,145 @@ GPIO_MODE=BCM
 WS_ENABLED=true
 
 # Testing Configuration
-TESTING=false
+TESTING=true  # Set to true during setup
 EOL
+
+    echo "Storage space calculation:"
+    echo "Total SD card space: ${TOTAL_SPACE_GB}GB"
+    echo "Allocated for BirdsOS: ${MAX_STORAGE_GB}GB (75%)"
+fi
+
+# Create config verification script
+echo "Creating configuration verification script..."
+cat > verify_config.py << EOL
+import os
+from dotenv import load_dotenv
+
+def verify_config():
+    load_dotenv()
+    required_vars = [
+        'FLASK_APP',
+        'STORAGE_PATH',
+        'MAX_STORAGE_GB',
+        'CAMERA_RESOLUTION_WIDTH',
+        'CAMERA_RESOLUTION_HEIGHT',
+        'CAMERA_FRAMERATE',
+        'GPIO_MODE'
+    ]
+    
+    missing = []
+    for var in required_vars:
+        if not os.getenv(var):
+            missing.append(var)
+    
+    if missing:
+        print("Error: Missing required environment variables:", ", ".join(missing))
+        return False
+        
+    # Verify storage path exists
+    storage_path = os.getenv('STORAGE_PATH')
+    if not os.path.exists(storage_path):
+        print(f"Error: Storage path {storage_path} does not exist")
+        return False
+        
+    return True
+
+if __name__ == '__main__':
+    if not verify_config():
+        exit(1)
+EOL
+
+# Verify configuration
+echo "Verifying configuration..."
+if ! python verify_config.py; then
+    echo "Error: Configuration verification failed!"
+    exit 1
+fi
+
+# Export environment variables for testing
+echo "Loading environment for tests..."
+set -a  # automatically export all variables
+source .env
+set +a
+
+# Run tests before proceeding with service setup
+echo "Running tests to verify installation..."
+if ! python -m pytest; then
+    echo "Error: Tests failed!"
+    echo "Would you like to:"
+    echo "1. Exit setup (recommended)"
+    echo "2. Continue anyway (not recommended)"
+    read -p "Enter your choice (1/2): " choice
+    case $choice in
+        1)
+            echo "Setup aborted. Please fix the test failures and try again."
+            exit 1
+            ;;
+        2)
+            echo "Warning: Continuing setup despite test failures. The system may not work correctly."
+            ;;
+        *)
+            echo "Invalid choice. Aborting setup."
+            exit 1
+            ;;
+    esac
 fi
 
 # Set up systemd service
 echo "Setting up systemd service..."
-sudo tee /etc/systemd/system/birdsos.service << EOL
+sudo tee /etc/systemd/system/birdbox.service << EOL
 [Unit]
 Description=BirdsOS Web Interface
 After=network.target
 
 [Service]
-User=pi
-WorkingDirectory=/home/pi/BirdsOS
-Environment="PATH=/home/pi/BirdsOS/venv/bin"
+User=${CURRENT_USER}
+WorkingDirectory=${INSTALL_PATH}
+Environment="PATH=${INSTALL_PATH}/venv/bin"
 Environment="PYTHONUNBUFFERED=1"
 Environment="FLASK_APP=app.py"
 Environment="FLASK_ENV=production"
-ExecStart=/home/pi/BirdsOS/venv/bin/python app.py
+ExecStart=${INSTALL_PATH}/venv/bin/python app.py
 Restart=always
 RestartSec=10
-StandardOutput=append:/home/pi/BirdsOS/storage/logs/birdsos.log
-StandardError=append:/home/pi/BirdsOS/storage/logs/birdsos_error.log
+StandardOutput=append:${INSTALL_PATH}/storage/logs/birdbox.log
+StandardError=append:${INSTALL_PATH}/storage/logs/birdbox_error.log
 
 [Install]
 WantedBy=multi-user.target
 EOL
 
-# Run initial tests
-echo "Running initial tests..."
-if ! python -m pytest; then
-    echo "Tests failed! Please check the test output above."
-    echo "Would you like to continue with the setup anyway? (y/N)"
-    read -r response
-    if [[ ! "$response" =~ ^[Yy]$ ]]; then
-        echo "Setup aborted due to test failures."
-        exit 1
-    fi
-    echo "Continuing setup despite test failures..."
-fi
-
 # Set up log rotation
 echo "Setting up log rotation..."
-sudo tee /etc/logrotate.d/birdsos << EOL
-/home/pi/BirdsOS/storage/logs/*.log {
+sudo tee /etc/logrotate.d/birdbox << EOL
+${INSTALL_PATH}/storage/logs/*.log {
     daily
-    rotate 7
+    rotate 14
     compress
     delaycompress
     missingok
     notifempty
+    create 0644 ${CURRENT_USER} ${CURRENT_USER}
 }
 EOL
 
 # Enable and start service
-sudo systemctl enable birdsos
-sudo systemctl start birdsos
+sudo systemctl enable birdbox
+sudo systemctl start birdbox
 
 echo "Setup complete!"
 echo "===================="
-echo "BirdsOS should now be running at: http://localhost:5000"
+echo "BirdsOS is now running at: http://localhost:5000"
 echo ""
-echo "Performance Recommendations:"
-echo "1. Use a Class 10 SD card (minimum 16GB)"
-echo "2. Monitor system resources with 'htop'"
-echo "3. Check temperatures with 'vcgencmd measure_temp'"
-echo "4. View logs in storage/logs directory"
+echo "Performance Recommendations for Raspberry Pi 3B:"
+echo "1. Use a high-quality Class 10 SD card (32GB recommended)"
+echo "2. Monitor CPU temperature regularly - should stay under 80°C"
+echo "3. Consider adding a cooling fan if running 24/7"
+echo "4. Check storage usage regularly with 'df -h'"
 echo ""
 echo "Important commands:"
-echo "- Check service status: sudo systemctl status birdsos"
-echo "- View logs: sudo journalctl -u birdsos"
+echo "- Check service status: sudo systemctl status birdbox"
+echo "- View logs: tail -f ${INSTALL_PATH}/storage/logs/birdbox.log"
 echo "- Monitor resources: htop"
 echo "- Check temperature: vcgencmd measure_temp"
-echo "- Restart service: sudo systemctl restart birdsos"
+echo "- Restart service: sudo systemctl restart birdbox"
