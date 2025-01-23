@@ -141,3 +141,67 @@ Spannung: 3,7 V Strom: 220 mA
 
 # Camera Case
 The Camera Case was used from https://www.thingiverse.com/thing:2317664 and modified, to make it attachable to the backboard.
+
+## Installation
+
+### Automated Setup (Raspberry Pi)
+
+The project includes an automated setup script designed for Raspberry Pi (optimized for Pi 3B). The script handles all necessary installation steps, including:
+- System dependencies
+- Python environment
+- Hardware configuration
+- Service setup
+- Storage management
+
+#### Prerequisites
+- Raspberry Pi (3B recommended) with Raspberry Pi OS
+- Internet connection
+- GitHub account (for SSH key setup)
+- At least 32GB SD card (Class 10 recommended)
+
+#### Installation Steps
+
+1. **Download the Setup Script**
+   ```bash
+   curl -O https://raw.githubusercontent.com/DeniseBryson/birdbox/AIgen2/setup.sh
+   chmod +x setup.sh
+   ```
+
+2. **Run the Setup Script**
+   ```bash
+   ./setup.sh
+   ```
+
+   The script will:
+   - Check if running on a Raspberry Pi
+   - Set up SSH keys if needed
+   - Install all dependencies
+   - Configure camera and GPIO interfaces
+   - Set up the Python environment
+   - Create necessary directories
+   - Configure storage based on available space
+   - Run tests to verify the installation
+   - Set up the system service
+
+3. **Post-Installation**
+   - The service will start automatically
+   - Access the web interface at `http://localhost:5000`
+   - Check the service status with `sudo systemctl status birdbox`
+
+#### Configuration
+The script creates a `.env` file with default settings optimized for Raspberry Pi 3B:
+- Camera: 640x480 @ 20fps
+- Storage: 75% of available SD card space
+- GPIO: BCM mode
+- Logging: Daily rotation, 14 days retention
+
+#### Troubleshooting
+- If tests fail during installation, you can choose to:
+  1. Exit and fix the issues
+  2. Continue with the installation (not recommended)
+- Check logs in `~/birdbox/storage/logs/`
+- Monitor system temperature with `vcgencmd measure_temp`
+- Monitor resources with `htop`
+
+#### Manual Installation
+For non-Raspberry Pi systems or manual installation, please refer to the [Manual Installation Guide](docs/manual_installation.md).
