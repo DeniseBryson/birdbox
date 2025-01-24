@@ -1,0 +1,30 @@
+<!--
+    Storage status component for BirdsOS dashboard
+    Displays storage usage and video file information
+-->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Storage Status</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="progress mb-3" style="height: 25px;">
+                            <div id="storage-progress" class="progress-bar" role="progressbar" style="width: 0%;" 
+                                 aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                        </div>
+                        <p id="storage-details" class="mb-2">Loading storage details...</p>
+                        <p id="storage-warning" class="text-warning d-none">Storage usage is high!</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Video Files</h6>
+                        <p id="video-stats">Loading video statistics...</p>
+                        <div id="video-list" class="small" style="max-height: 150px; overflow-y: auto;">
+                            Loading recent videos...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 

@@ -4,6 +4,7 @@ BirdsOS - Main Application Entry Point
 from flask import Flask, render_template
 from routes.main_routes import main_bp
 from routes.api_routes import api_bp
+from routes.system_routes import system_bp
 from features.gpio.routes import gpio_bp
 from features.camera.routes import camera_bp
 from features.camera.ws_routes import ws_bp, sock
@@ -26,6 +27,7 @@ def create_app():
     app.register_blueprint(ws_bp, url_prefix='/ws')
     app.register_blueprint(gpio_bp)
     app.register_blueprint(camera_bp)
+    app.register_blueprint(system_bp)
     
     # Register error handlers
     @app.errorhandler(404)

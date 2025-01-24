@@ -166,6 +166,10 @@ The project includes an automated setup script designed for Raspberry Pi (optimi
    curl -O https://raw.githubusercontent.com/DeniseBryson/birdbox/AIgen2/setup.sh
    chmod +x setup.sh
    ```
+   or upload via scp:
+   ```bash
+   scp "setup.sh" birds@<ip-address>:/home/birds/
+   ```
 
 2. **Run the Setup Script**
    ```bash

@@ -13,26 +13,46 @@ if ! grep -q "Raspberry Pi" /proc/cpuinfo; then
     exit 1
 fi
 
-# Check for SSH key
-if [ ! -f ~/.ssh/id_rsa ]; then
-    echo "SSH key not found. Setting up SSH key..."
-    ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa
-    echo "Please add this SSH key to your GitHub account before continuing:"
-    cat ~/.ssh/id_rsa.pub
-    echo ""
-    read -p "Press Enter once you've added the SSH key to GitHub..."
-fi
+# Check for old SSH keys and remove them
+echo "Cleaning up old SSH configuration..."
+rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub
+rm -f ~/.ssh/config
+
+# Configure SSH for deploy key
+echo "Configuring SSH for deploy key..."
+mkdir -p ~/.ssh
+cat > ~/.ssh/config << EOL
+Host github.com-birdbox
+    Hostname github.com
+    IdentityFile ~/.ssh/birdbox_deploy_key
+    StrictHostKeyChecking accept-new
+EOL
+chmod 600 ~/.ssh/config
+
+# Add GitHub's SSH host key
+echo "Adding GitHub's SSH host key..."
+ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts
+
+# Fix locale issues at the start
+echo "Configuring locale..."
+sudo apt-get update
+sudo apt-get install -y locales
+sudo sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
+sudo locale-gen
+sudo update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 LANGUAGE=en_US.UTF-8
 
 # Update system
 echo "Updating system packages..."
 sudo apt-get update
 sudo apt-get upgrade -y
+sudo apt-get dist-upgrade -y  # Add this to handle held back packages
 
 # Install system dependencies
 echo "Installing system dependencies..."
 sudo apt-get install -y \
     python3-pip \
     python3-venv \
+    python3-full \
     git \
     python3-opencv \
     libatlas-base-dev \
@@ -42,7 +62,7 @@ sudo apt-get install -y \
     gstreamer1.0-plugins-good \
     gstreamer1.0-plugins-bad \
     htop \
-    psutil
+    python3-psutil 
 
 # Enable required interfaces
 echo "Configuring Raspberry Pi interfaces..."
@@ -57,7 +77,14 @@ cd ${INSTALL_PATH}
 
 # Clone repository
 echo "Cloning BirdsOS repository (AIgen2 branch)..."
-git clone -b AIgen2 git@github.com:DeniseBryson/birdbox.git .
+if [ -d ".git" ]; then
+    echo "Git repository already exists, fetching latest changes..."
+    git fetch
+    git reset --hard origin/AIgen2
+else
+    rm -rf * .[!.]* ..?*  # Clear directory (including hidden files)
+    git clone -b AIgen2 git@github.com-birdbox:DeniseBryson/birdbox.git .
+fi
 
 # Create required directories
 echo "Creating storage directories..."
@@ -65,13 +92,36 @@ mkdir -p storage/{recordings,logs}
 
 # Create virtual environment
 echo "Setting up Python virtual environment..."
-python3 -m venv venv
+rm -rf venv  # Remove existing venv if present
+python3 -m venv venv --system-site-packages
 source venv/bin/activate
 
 # Install Python dependencies
 echo "Installing Python requirements..."
-pip install --upgrade pip
-pip install -r requirements.txt
+python3 -m pip install --upgrade pip --break-system-packages
+python3 -m pip install python-dotenv --break-system-packages
+python3 -m pip install pytest pytest-cov --break-system-packages  # Add test dependencies
+
+if [ -f requirements.txt ]; then
+    echo "Installing requirements from requirements.txt..."
+    python3 -m pip install -r requirements.txt --break-system-packages
+else
+    echo "No requirements.txt found, installing core dependencies..."
+    python3 -m pip install \
+        flask \
+        flask-socketio \
+        opencv-python \
+        numpy \
+        pillow \
+        pytest \
+        pytest-cov \
+        python-dotenv \
+        --break-system-packages
+fi
+
+# Verify pip installations
+echo "Verifying pip installations..."
+python3 -m pip list
 
 # Create environment file if it doesn't exist
 if [ ! -f .env ]; then
@@ -165,15 +215,23 @@ if ! python verify_config.py; then
     exit 1
 fi
 
-# Export environment variables for testing
+# Before running tests, ensure we're using the virtual environment
 echo "Loading environment for tests..."
-set -a  # automatically export all variables
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+else
+    echo "Error: Virtual environment not found"
+    exit 1
+fi
+
+# Export environment variables
+set -a
 source .env
 set +a
 
-# Run tests before proceeding with service setup
+# Run tests using the virtual environment's Python
 echo "Running tests to verify installation..."
-if ! python -m pytest; then
+if ! venv/bin/python -m pytest; then
     echo "Error: Tests failed!"
     echo "Would you like to:"
     echo "1. Exit setup (recommended)"
@@ -197,10 +255,6 @@ fi
 # Set up systemd service
 echo "Setting up systemd service..."
 sudo tee /etc/systemd/system/birdbox.service << EOL
-[Unit]
-Description=BirdsOS Web Interface
-After=network.target
-
 [Service]
 User=${CURRENT_USER}
 WorkingDirectory=${INSTALL_PATH}

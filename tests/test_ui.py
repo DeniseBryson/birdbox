@@ -1,5 +1,8 @@
 import pytest
 from app import app
+import os
+from dotenv import load_dotenv
+from features.storage import StorageManager
 
 @pytest.fixture
 def client():
@@ -46,10 +49,59 @@ class TestUI:
         response = client.get('/config')
         assert response.status_code == 200
         html = response.data.decode()
+        
+        # Page title
         assert "Configuration - BirdsOS" in html
-        assert "<h1>System Configuration</h1>" in html
+        assert "System Configuration" in html
+        
+        # Storage configuration
+        assert 'id="storage-config-form"' in html
+        assert 'id="disk-usage"' in html
+        assert 'id="disk-info"' in html
+        
+        # Profiles configuration
         assert 'id="profiles-list"' in html
-        assert 'id="settings-panel"' in html
+        assert 'id="profile-config-form"' in html
+        assert 'id="motor-frequency"' in html
+        assert 'id="sensor-sensitivity"' in html
+        assert 'id="feeding-delay"' in html
+        
+    def test_storage_config_persistence(self, client, tmp_path):
+        """Test that storage configuration persists correctly"""
+        # Create temporary environment file
+        env_file = tmp_path / '.env'
+        env_file.write_text('')
+        os.environ['ENV_FILE'] = str(env_file)
+        
+        # Set test configuration
+        test_config = {
+            'storage_limit': 5 * 1024 * 1024 * 1024,  # 5GB
+            'warning_threshold': 0.75,
+            'retention_days': 7
+        }
+        
+        # Save configuration
+        response = client.post('/api/v1/config/storage', 
+                             json=test_config,
+                             content_type='application/json')
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['status'] == 'success'
+        
+        # Verify configuration was saved to env file
+        load_dotenv(env_file)
+        assert float(os.getenv('MAX_STORAGE_GB')) == 5.0
+        assert float(os.getenv('WARNING_THRESHOLD')) == 0.75
+        assert int(os.getenv('RETENTION_DAYS')) == 7
+        
+        # Verify configuration is loaded correctly in new instance
+        storage_manager = StorageManager('storage')
+        assert storage_manager.storage_limit == test_config['storage_limit']
+        assert storage_manager.warning_threshold == test_config['warning_threshold']
+        assert storage_manager.retention_days == test_config['retention_days']
+        
+        # Clean up
+        os.environ.pop('ENV_FILE', None)
         
     def test_maintenance_ui(self, client):
         """Test maintenance page UI"""

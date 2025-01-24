@@ -36,4 +36,12 @@
         </div>
     </div>
 </div>
+
+{% include 'components/storage_status.html' %}
+{% include 'components/version_info.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ url_for('static', filename='js/storage_status.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/version_manager.js') }}"></script>
 {% endblock %} 

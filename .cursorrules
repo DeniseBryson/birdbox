@@ -62,3 +62,10 @@
 - No hardcoded credentials
 - API keys must use environment variables
 - Security-related changes require explicit approval
+
+## Frontend Organization
+- JavaScript code must be separated into dedicated .js files in static/js/
+- HTML components should be modular and stored in templates/components/
+- Each feature's UI components should have their own directory
+- Keep JavaScript files focused and under 200 lines
+- Keep HTML components focused and under 100 lines
