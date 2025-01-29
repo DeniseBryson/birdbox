@@ -64,4 +64,44 @@ def test_status_cards_present(client, expected_card_title):
     soup = BeautifulSoup(response.data, 'html.parser')
     
     card = soup.find('h5', {'class': 'card-title'}, string=expected_card_title)
-    assert card is not None, f"{expected_card_title} card not found" 
+    assert card is not None, f"{expected_card_title} card not found"
+
+def test_version_info_section_present(client):
+    """Test that version information section is present with all required elements"""
+    response = client.get('/')
+    soup = BeautifulSoup(response.data, 'html.parser')
+    
+    # Check version info card exists
+    version_card = soup.find('h5', {'class': 'card-title'}, string='System Version')
+    assert version_card is not None, "Version info card not found"
+    
+    # Check version elements
+    commit_hash = soup.find('code', id='commit-hash')
+    assert commit_hash is not None, "Commit hash element not found"
+    
+    commit_date = soup.find('small', id='commit-date')
+    assert commit_date is not None, "Commit date element not found"
+    
+    # Check update elements
+    check_button = soup.find('button', id='check-update')
+    assert check_button is not None, "Check for updates button not found"
+    assert "Check for Updates" in check_button.text
+    
+    update_status = soup.find('p', id='update-status')
+    assert update_status is not None, "Update status element not found"
+    
+    # Check update info section
+    update_info = soup.find('div', id='update-info')
+    assert update_info is not None, "Update info section not found"
+    assert "d-none" in update_info.get('class', []), "Update info should be hidden by default"
+    
+    update_changes = soup.find('pre', id='update-changes')
+    assert update_changes is not None, "Update changes element not found"
+
+def test_version_script_included(client):
+    """Test that version manager JavaScript is included"""
+    response = client.get('/')
+    soup = BeautifulSoup(response.data, 'html.parser')
+    
+    script_tag = soup.find('script', src=lambda x: x and 'version_manager.js' in x)
+    assert script_tag is not None, "Version manager JavaScript not included" 

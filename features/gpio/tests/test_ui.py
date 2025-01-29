@@ -1,9 +1,11 @@
 """
-UI Tests for GPIO Control Interface
+UI Tests for GPIO Functionality
 """
 import pytest
+import json
 from flask import url_for
 from flask.testing import FlaskClient
+from features.gpio.hardware import GPIO
 
 @pytest.fixture
 def client(app) -> FlaskClient:
@@ -14,70 +16,93 @@ def test_gpio_page_load(client):
     """Test that the GPIO control page loads correctly."""
     response = client.get('/gpio/')
     assert response.status_code == 200
-    assert b"GPIO Control Panel" in response.data
+    assert b"GPIO Control" in response.data
     assert b"gpio-pin-select" in response.data
     assert b"set-input" in response.data
     assert b"set-output" in response.data
     assert b"gpio-overview" in response.data
 
 def test_gpio_api_pins(client):
-    """Test the GPIO pins API endpoint."""
+    """Test getting GPIO pin information."""
     response = client.get('/gpio/api/pins')
     assert response.status_code == 200
-    data = response.get_json()
-    assert 'status' in data
-    assert data['status'] == 'success'
+    data = json.loads(response.data)
+    
     assert 'pins' in data
-    assert isinstance(data['pins'], list)
-    assert len(data['pins']) > 0
+    pins = data['pins']
+    assert isinstance(pins, list)
+    assert len(pins) > 0
+    
+    # Check pin data structure
+    pin = pins[0]
+    assert 'number' in pin
+    assert 'mode' in pin
+    assert 'state' in pin
+    assert 'configured' in pin
+    assert isinstance(pin['number'], int)
+    assert pin['mode'] in [GPIO.IN, GPIO.OUT]
+    assert pin['state'] in [GPIO.LOW, GPIO.HIGH]
+    assert isinstance(pin['configured'], bool)
 
 def test_gpio_configure(client):
-    """Test configuring a GPIO pin."""
+    """Test configuring GPIO pins through API."""
     # Configure pin as output
     response = client.post('/gpio/api/configure', json={
         'pin': 18,
-        'mode': 'OUT'
+        'mode': GPIO.OUT
     })
     assert response.status_code == 200
-    data = response.get_json()
+    data = json.loads(response.data)
     assert data['status'] == 'success'
     assert data['pin'] == 18
-    assert data['mode'] == 'OUT'
+    assert data['mode'] == GPIO.OUT
+    assert data['state'] in [GPIO.LOW, GPIO.HIGH]
+    
+    # Configure pin as input
+    response = client.post('/gpio/api/configure', json={
+        'pin': 18,
+        'mode': GPIO.IN
+    })
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data['status'] == 'success'
+    assert data['pin'] == 18
+    assert data['mode'] == GPIO.IN
+    assert data['state'] in [GPIO.LOW, GPIO.HIGH]
 
 def test_gpio_state_changes(client):
-    """Test changing GPIO pin states."""
+    """Test changing GPIO pin states through API."""
     # Configure pin first
     client.post('/gpio/api/configure', json={
         'pin': 18,
-        'mode': 'OUT'
+        'mode': GPIO.OUT
     })
     
-    # Set state HIGH
+    # Set HIGH
     response = client.post('/gpio/api/state', json={
         'pin': 18,
-        'state': 1
+        'state': GPIO.HIGH
     })
     assert response.status_code == 200
-    data = response.get_json()
+    data = json.loads(response.data)
     assert data['status'] == 'success'
     assert data['pin'] == 18
-    assert data['state'] == 1
+    assert data['state'] == GPIO.HIGH
     
-    # Set state LOW
+    # Set LOW
     response = client.post('/gpio/api/state', json={
         'pin': 18,
-        'state': 0
+        'state': GPIO.LOW
     })
     assert response.status_code == 200
-    data = response.get_json()
+    data = json.loads(response.data)
     assert data['status'] == 'success'
     assert data['pin'] == 18
-    assert data['state'] == 0
+    assert data['state'] == GPIO.LOW
 
 def test_gpio_cleanup(client):
-    """Test GPIO cleanup endpoint."""
+    """Test GPIO cleanup through API."""
     response = client.post('/gpio/api/cleanup')
     assert response.status_code == 200
-    data = response.get_json()
-    assert data['status'] == 'success'
-    assert 'message' in data 
+    data = json.loads(response.data)
+    assert data['status'] == 'success' 

@@ -4,11 +4,16 @@ GPIO API Routes
 This module provides the API endpoints for GPIO control.
 """
 from flask import Blueprint, jsonify, request, render_template
-from .manager import GPIOManager
-from .hardware import GPIO
+from .manager import GPIOManager, GPIO
 import threading
 import logging
-import RPi.GPIO as RPI_GPIO
+from werkzeug.exceptions import BadRequest
+
+# Try to import RPi.GPIO, but don't fail if not available
+try:
+    import RPi.GPIO as RPI_GPIO
+except ImportError:
+    RPI_GPIO = None
 
 logger = logging.getLogger(__name__)
 
@@ -46,156 +51,121 @@ def get_gpio_pins():
             
             for pin in available_pins:
                 try:
-                    if pin in configured_pins:
-                        # Get state for configured pins
-                        state = gpio_manager.get_pin_state(pin)
-                        pins.append({
-                            'number': pin,
-                            'mode': configured_pins[pin],
-                            'state': state['state'],
-                            'configured': True
-                        })
+                    pin_data = {
+                        'number': pin,
+                        'mode': configured_pins.get(pin, GPIO.IN),
+                        'configured': pin in configured_pins
+                    }
+                    
+                    if pin_data['configured']:
+                        pin_data['state'] = gpio_manager.get_pin_state(pin)
                     else:
-                        # Return default state for unconfigured pins
-                        pins.append({
-                            'number': pin,
-                            'mode': GPIO.IN,
-                            'state': GPIO.LOW,
-                            'configured': False
-                        })
+                        pin_data['state'] = GPIO.LOW
+                        
+                    pins.append(pin_data)
                 except Exception as e:
                     logger.error(f"Error getting state for pin {pin}: {str(e)}")
-                    # If error occurs, return unconfigured state
-                    pins.append({
-                        'number': pin,
-                        'mode': GPIO.IN,
-                        'state': GPIO.LOW,
-                        'configured': False
-                    })
+                    continue
             
-            return jsonify({
-                'status': 'success',
-                'pins': pins
-            })
+            return jsonify({'pins': pins})
         except Exception as e:
-            return jsonify({
-                'status': 'error',
-                'message': str(e)
-            }), 500
+            logger.error(f"Failed to get GPIO pins: {str(e)}")
+            return jsonify({'error': str(e)}), 500
 
 @gpio_bp.route('/api/configure', methods=['POST'])
 def configure_gpio():
     """
-    Configure GPIO pin mode.
+    Configure a GPIO pin's mode.
     
-    Expected JSON payload:
+    Expected JSON body:
     {
-        "pin": int,  # GPIO pin number
-        "mode": str  # "IN" or "OUT"
+        "pin": <pin_number>,
+        "mode": "IN" or "OUT"
     }
-    
-    Returns:
-        JSON response with updated pin state
     """
     with gpio_lock:
         try:
-            data = request.get_json()
-            if not data or 'pin' not in data or 'mode' not in data:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Missing required fields: pin, mode'
-                }), 400
+            try:
+                data = request.get_json()
+            except BadRequest:
+                return jsonify({'error': 'Invalid JSON format'}), 400
                 
-            pin = data['pin']
+            if not data or 'pin' not in data or 'mode' not in data:
+                return jsonify({'error': 'Missing required parameters'}), 400
+                
+            pin = int(data['pin'])
             mode = data['mode']
             
-            # Configure the pin
-            state = gpio_manager.configure_pin(pin, mode)
-            
+            if pin not in gpio_manager.get_available_pins():
+                return jsonify({'error': 'Invalid pin number'}), 400
+                
+            if mode not in [GPIO.IN, GPIO.OUT]:
+                return jsonify({'error': 'Invalid mode'}), 400
+                
+            gpio_manager.configure_pin(pin, mode)
             return jsonify({
                 'status': 'success',
-                'pin': state
+                'pin': pin,
+                'mode': mode,
+                'state': gpio_manager.get_pin_state(pin)
             })
-            
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
         except Exception as e:
-            return jsonify({
-                'status': 'error',
-                'message': str(e)
-            }), 500
+            logger.error(f"Failed to configure GPIO pin: {str(e)}")
+            return jsonify({'error': str(e)}), 500
 
 @gpio_bp.route('/api/state', methods=['POST'])
 def set_gpio_state():
     """
-    Set GPIO pin state.
+    Set a GPIO pin's state.
     
-    Expected JSON payload:
+    Expected JSON body:
     {
-        "pin": int,   # GPIO pin number
-        "state": int  # 0 or 1
+        "pin": <pin_number>,
+        "state": 0 or 1
     }
-    
-    Returns:
-        JSON response with updated pin state
     """
     with gpio_lock:
         try:
-            data = request.get_json()
+            try:
+                data = request.get_json()
+            except BadRequest:
+                return jsonify({'error': 'Invalid JSON format'}), 400
+                
             if not data or 'pin' not in data or 'state' not in data:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Missing required fields: pin, state'
-                }), 400
+                return jsonify({'error': 'Missing required parameters'}), 400
                 
-            pin = data['pin']
-            state = data['state']
+            pin = int(data['pin'])
+            state = int(data['state'])
             
-            # Get current configuration
-            configured_pins = gpio_manager.get_configured_pins()
-            
-            # Verify pin is configured as output
-            if pin not in configured_pins:
-                return jsonify({
-                    'status': 'error',
-                    'message': f'Pin {pin} is not configured'
-                }), 400
+            if pin not in gpio_manager.get_available_pins():
+                return jsonify({'error': 'Invalid pin number'}), 400
                 
-            if configured_pins[pin] != GPIO.OUT:
-                return jsonify({
-                    'status': 'error',
-                    'message': f'Pin {pin} is not configured as output'
-                }), 400
-            
-            # Set the state
-            new_state = gpio_manager.set_pin_state(pin, state)
-            
+            if state not in [GPIO.LOW, GPIO.HIGH]:
+                return jsonify({'error': 'Invalid state value'}), 400
+                
+            gpio_manager.set_pin_state(pin, state)
             return jsonify({
                 'status': 'success',
-                'pin': new_state
+                'pin': pin,
+                'state': state
             })
-            
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        except RuntimeError as e:
+            return jsonify({'error': str(e)}), 400
         except Exception as e:
-            return jsonify({
-                'status': 'error',
-                'message': str(e)
-            }), 500
+            logger.error(f"Failed to set GPIO state: {str(e)}")
+            return jsonify({'error': str(e)}), 500
 
 @gpio_bp.route('/api/cleanup', methods=['POST'])
 def cleanup_gpio():
-    """
-    Clean up GPIO resources.
-    
-    Returns:
-        JSON response indicating success/failure
-    """
+    """Clean up GPIO resources."""
     with gpio_lock:
         try:
             gpio_manager.cleanup()
-            return jsonify({
-                'status': 'success',
-                'message': 'GPIO cleanup completed'
-            })
+            return jsonify({'status': 'success'})
         except Exception as e:
-            return jsonify({
-                'status': 'error',
-                'message': str(e)
-            }), 500
+            logger.error(f"Failed to clean up GPIO: {str(e)}")
+            return jsonify({'error': str(e)}), 500

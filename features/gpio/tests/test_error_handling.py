@@ -8,9 +8,11 @@ from unittest.mock import patch, MagicMock
 from features.gpio.hardware import GPIO
 
 @pytest.fixture
-def mock_gpio():
-    """Mock GPIO hardware interface."""
-    with patch('features.gpio.hardware.GPIO') as mock:
+def mock_gpio_manager():
+    """Mock GPIO manager."""
+    with patch('features.gpio.routes.gpio_manager') as mock:
+        # Set up available pins
+        mock.get_available_pins.return_value = [18]
         yield mock
 
 class TestGPIOErrorHandling:
@@ -25,12 +27,12 @@ class TestGPIOErrorHandling:
         """Test handling of invalid pin numbers."""
         response = client.post('/gpio/api/configure', json={
             'pin': 999,  # Invalid pin number
-            'mode': 'OUT'
+            'mode': GPIO.OUT
         })
         assert response.status_code == 400
         data = json.loads(response.data)
-        assert data['status'] == 'error'
-        assert 'Invalid GPIO pin' in data['message']
+        assert 'error' in data
+        assert 'Invalid pin number' in data['error']
     
     def test_invalid_pin_mode(self, client):
         """Test handling of invalid pin modes."""
@@ -40,8 +42,8 @@ class TestGPIOErrorHandling:
         })
         assert response.status_code == 400
         data = json.loads(response.data)
-        assert data['status'] == 'error'
-        assert 'Invalid mode' in data['message']
+        assert 'error' in data
+        assert 'Invalid mode' in data['error']
     
     def test_missing_parameters(self, client):
         """Test handling of missing required parameters."""
@@ -49,117 +51,121 @@ class TestGPIOErrorHandling:
         response = client.post('/gpio/api/configure', json={})
         assert response.status_code == 400
         data = json.loads(response.data)
-        assert data['status'] == 'error'
-        assert 'Missing required fields' in data['message']
+        assert 'error' in data
+        assert 'Missing required parameters' in data['error']
         
         # Test state endpoint
         response = client.post('/gpio/api/state', json={})
         assert response.status_code == 400
         data = json.loads(response.data)
-        assert data['status'] == 'error'
-        assert 'Missing required fields' in data['message']
+        assert 'error' in data
+        assert 'Missing required parameters' in data['error']
     
-    def test_hardware_access_failure(self, client):
+    def test_hardware_access_failure(self, client, mock_gpio_manager):
         """Test handling of hardware access failures."""
-        with patch('features.gpio.routes.gpio_manager') as mock_manager:
-            mock_manager.configure_pin.side_effect = RuntimeError("Hardware access failed")
-            
-            response = client.post('/gpio/api/configure', json={
-                'pin': 18,
-                'mode': 'OUT'
-            })
-            assert response.status_code == 500
-            data = json.loads(response.data)
-            assert data['status'] == 'error'
-            assert 'Hardware access failed' in data['message']
+        mock_gpio_manager.configure_pin.side_effect = RuntimeError("Hardware access failed")
+        
+        response = client.post('/gpio/api/configure', json={
+            'pin': 18,
+            'mode': GPIO.OUT
+        })
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert 'error' in data
+        assert 'Hardware access failed' in data['error']
     
     def test_concurrent_access(self, client):
-        """Test handling of concurrent pin access."""
-        # Configure pin first
-        client.post('/gpio/api/configure', json={
-            'pin': 18,
-            'mode': 'OUT'
-        })
-        
-        # Attempt concurrent state changes
+        """Test handling of concurrent access to GPIO."""
         import threading
         import queue
         
         results = queue.Queue()
+        
         def make_request():
-            response = client.post('/gpio/api/state', json={
-                'pin': 18,
-                'state': 1
-            })
-            results.put(response)
+            """Make a GPIO request."""
+            try:
+                response = client.post('/gpio/api/configure', json={
+                    'pin': 18,
+                    'mode': GPIO.OUT
+                })
+                results.put(response.status_code)
+            except Exception as e:
+                results.put(e)
         
+        # Create multiple threads to simulate concurrent access
         threads = [threading.Thread(target=make_request) for _ in range(5)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
         
-        # Check all responses
+        # Check that all requests completed successfully
         while not results.empty():
-            response = results.get()
-            assert response.status_code in [200, 409]  # Either success or conflict
+            result = results.get()
+            assert result == 200
     
-    def test_cleanup_error_handling(self, client):
-        """Test handling of cleanup errors."""
-        with patch('features.gpio.routes.gpio_manager') as mock_manager:
-            mock_manager.cleanup.side_effect = RuntimeError("Cleanup failed")
-            
-            response = client.post('/gpio/api/cleanup')
-            assert response.status_code == 500
-            data = json.loads(response.data)
-            assert data['status'] == 'error'
-            assert 'Cleanup failed' in data['message']
+    def test_cleanup_error_handling(self, client, mock_gpio_manager):
+        """Test handling of cleanup failures."""
+        mock_gpio_manager.cleanup.side_effect = RuntimeError("Cleanup failed")
+        
+        response = client.post('/gpio/api/cleanup')
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert 'error' in data
+        assert 'Cleanup failed' in data['error']
     
     def test_invalid_state_value(self, client):
         """Test handling of invalid state values."""
+        # Configure pin first
+        client.post('/gpio/api/configure', json={
+            'pin': 18,
+            'mode': GPIO.OUT
+        })
+        
+        # Try to set invalid state
         response = client.post('/gpio/api/state', json={
             'pin': 18,
-            'state': 'invalid'  # Should be 0 or 1
+            'state': 2  # Invalid state value
         })
         assert response.status_code == 400
         data = json.loads(response.data)
-        assert data['status'] == 'error'
-        assert 'Invalid state value' in data['message']
+        assert 'error' in data
+        assert 'Invalid state value' in data['error']
     
     def test_unconfigured_pin_access(self, client):
-        """Test handling of accessing unconfigured pins."""
-        # Try to set state without configuring first
+        """Test handling of access to unconfigured pins."""
         response = client.post('/gpio/api/state', json={
             'pin': 18,
-            'state': 1
+            'state': GPIO.HIGH
         })
         assert response.status_code == 400
         data = json.loads(response.data)
-        assert data['status'] == 'error'
-        assert 'Pin not configured' in data['message']
+        assert 'error' in data
+        assert 'not configured' in data['error']
     
     def test_input_pin_write(self, client):
-        """Test handling of writing to input pins."""
+        """Test handling of attempts to write to input pins."""
         # Configure pin as input
         client.post('/gpio/api/configure', json={
             'pin': 18,
-            'mode': 'IN'
+            'mode': GPIO.IN
         })
         
         # Try to set state
         response = client.post('/gpio/api/state', json={
             'pin': 18,
-            'state': 1
+            'state': GPIO.HIGH
         })
         assert response.status_code == 400
         data = json.loads(response.data)
-        assert data['status'] == 'error'
-        assert 'Cannot set state of input pin' in data['message']
+        assert 'error' in data
+        assert 'not configured as output' in data['error']
     
     def test_malformed_json(self, client):
         """Test handling of malformed JSON requests."""
-        response = client.post('/gpio/api/configure',
+        response = client.post('/gpio/api/configure', 
                              data='invalid json',
                              content_type='application/json')
         assert response.status_code == 400
-        assert '400 BAD REQUEST' in response.status 
+        data = json.loads(response.data)
+        assert 'error' in data 

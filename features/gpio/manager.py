@@ -6,7 +6,7 @@ This module provides the core GPIO functionality with both real hardware and moc
 import platform
 import logging
 import os
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Callable
 from .hardware import GPIO, get_valid_pins
 
 # For real hardware
@@ -26,6 +26,8 @@ class GPIOManager:
         is_raspberry_pi (bool): Whether running on actual Raspberry Pi hardware
         pins (Dict): Dictionary storing pin states and configurations
         _mock_states (Dict): Internal dictionary for mock pin states
+        _pin_callbacks (Dict): Dictionary storing pin change callbacks
+        _pin_modes (Dict): Cache of pin modes to avoid unnecessary reads
     """
     
     def __init__(self):
@@ -40,6 +42,8 @@ class GPIOManager:
         self.is_raspberry_pi = is_pi and RPI_GPIO is not None
         self.pins = {}
         self._mock_states = {}
+        self._pin_callbacks = {}
+        self._pin_modes = {}
         
         # Get valid pins for this hardware
         self.valid_pins = get_valid_pins()
@@ -55,19 +59,20 @@ class GPIOManager:
             logger.info(f"Available GPIO pins: {self.valid_pins}")
         
         self.setup()
-        
+
     def setup(self) -> None:
         """Set up GPIO system based on platform."""
         if self.is_raspberry_pi:
             try:
                 RPI_GPIO.setmode(RPI_GPIO.BCM)
+                RPI_GPIO.setwarnings(False)  # Disable warnings about pin states
                 logger.info("Initialized real Raspberry Pi GPIO in BCM mode")
             except Exception as e:
                 logger.error(f"Failed to initialize GPIO: {str(e)}")
                 raise RuntimeError(f"Hardware access failed: {str(e)}")
         else:
             self._setup_mock()
-            
+
     def _setup_mock(self) -> None:
         """Set up mock GPIO implementation."""
         logger.info("Initialized mock GPIO implementation")
@@ -88,19 +93,15 @@ class GPIOManager:
         
     def get_configured_pins(self) -> Dict[int, str]:
         """
-        Get dictionary of configured pins and their modes using direct GPIO access.
+        Get dictionary of configured pins and their modes.
         
         Returns:
             Dict[int, str]: Dictionary mapping pin numbers to their modes ('IN' or 'OUT')
-            
-        Note:
-            For mock environment, returns pins that have been explicitly configured
         """
         if self.is_raspberry_pi:
             configured_pins = {}
             for pin in self.valid_pins:
                 try:
-                    # Check if pin is setup by trying to get its function
                     mode = RPI_GPIO.gpio_function(pin)
                     if mode in [RPI_GPIO.IN, RPI_GPIO.OUT]:
                         configured_pins[pin] = "IN" if mode == RPI_GPIO.IN else "OUT"
@@ -109,71 +110,53 @@ class GPIOManager:
                     continue
             return configured_pins
         else:
-            # For mock environment, return pins that have been explicitly configured
             return {
                 pin: state['mode']
                 for pin, state in self._mock_states.items()
                 if state['configured']
             }
-        
-    def get_pin_state(self, pin: int) -> Dict:
+
+    def get_pin_state(self, pin: int) -> int:
         """
-        Get the current state and configuration of a GPIO pin.
+        Get the current state of a GPIO pin.
         
         Args:
-            pin (int): GPIO pin number
+            pin (int): The GPIO pin number
             
         Returns:
-            Dict: Pin state information including mode and current state
+            int: GPIO.HIGH or GPIO.LOW
             
         Raises:
-            ValueError: If pin number is invalid
-            RuntimeError: If pin is not configured or hardware access fails
+            ValueError: If pin is invalid
+            RuntimeError: If pin is not configured
         """
         if pin not in self.valid_pins:
             raise ValueError(f"Invalid GPIO pin: {pin}")
             
         if self.is_raspberry_pi:
-            try:
-                mode = RPI_GPIO.gpio_function(pin)
-                if mode not in [RPI_GPIO.IN, RPI_GPIO.OUT]:
-                    raise RuntimeError(f"Pin {pin} is not configured as INPUT or OUTPUT")
-                state = RPI_GPIO.input(pin)
-                return {
-                    'pin': pin,
-                    'mode': "IN" if mode == RPI_GPIO.IN else "OUT",
-                    'state': state,
-                    'name': f'GPIO{pin}',
-                    'configured': True
-                }
-            except Exception as e:
-                logger.error(f"Failed to get pin {pin} state: {str(e)}")
-                raise RuntimeError(f"Failed to access pin {pin}: {str(e)}")
+            mode = self._pin_modes.get(pin)
+            if mode == GPIO.OUT:
+                # For output pins, we maintain our own state tracking
+                return self.pins.get(pin, GPIO.LOW)
+            else:
+                # For input pins, we read directly
+                return GPIO.HIGH if RPI_GPIO.input(pin) else GPIO.LOW
         else:
-            if pin not in self._mock_states:
-                raise RuntimeError("Pin not configured")
-            pin_data = self._mock_states[pin]
-            return {
-                'pin': pin,
-                'mode': pin_data['mode'],
-                'state': pin_data['state'],
-                'name': f'GPIO{pin}',
-                'configured': pin_data.get('configured', True)
-            }
-        
-    def configure_pin(self, pin: int, mode: str) -> Dict:
+            if not self._mock_states[pin]['configured']:
+                raise RuntimeError(f"Pin {pin} is not configured")
+            return self._mock_states[pin]['state']
+
+    def configure_pin(self, pin: int, mode: str, callback: Optional[Callable] = None) -> None:
         """
-        Configure a GPIO pin's mode.
+        Configure a GPIO pin with the specified mode and optional callback for input pins.
         
         Args:
-            pin (int): GPIO pin number
-            mode (str): Pin mode ("IN" or "OUT")
-            
-        Returns:
-            Dict: Updated pin state
+            pin (int): The GPIO pin number
+            mode (str): Either GPIO.IN or GPIO.OUT
+            callback (Optional[Callable]): Callback function for input pin changes
             
         Raises:
-            ValueError: If pin number or mode is invalid
+            ValueError: If pin or mode is invalid
             RuntimeError: If hardware access fails
         """
         if pin not in self.valid_pins:
@@ -182,35 +165,33 @@ class GPIOManager:
         if mode not in [GPIO.IN, GPIO.OUT]:
             raise ValueError(f"Invalid mode: {mode}")
             
-        try:
-            if self.is_raspberry_pi:
-                RPI_GPIO.setup(pin, RPI_GPIO.IN if mode == GPIO.IN else RPI_GPIO.OUT)
-            else:
-                GPIO.setup(pin, mode)
-                self._mock_states[pin] = {
-                    'mode': mode,
-                    'state': GPIO.LOW,
-                    'configured': True
-                }
-        except Exception as e:
-            raise RuntimeError(f"Hardware access failed: {str(e)}")
+        if self.is_raspberry_pi:
+            RPI_GPIO.setup(pin, RPI_GPIO.IN if mode == GPIO.IN else RPI_GPIO.OUT)
+            self._pin_modes[pin] = mode
             
-        return self.get_pin_state(pin)
-        
-    def set_pin_state(self, pin: int, state: int) -> Dict:
+            if mode == GPIO.IN and callback:
+                # Remove any existing event detection
+                RPI_GPIO.remove_event_detect(pin)
+                # Add both rising and falling edge detection
+                RPI_GPIO.add_event_detect(pin, RPI_GPIO.BOTH, callback=callback)
+                self._pin_callbacks[pin] = callback
+        else:
+            self._mock_states[pin]['mode'] = mode
+            self._mock_states[pin]['configured'] = True
+            if callback:
+                self._pin_callbacks[pin] = callback
+
+    def set_pin_state(self, pin: int, state: int) -> None:
         """
-        Set the state of a GPIO pin.
+        Set the state of a GPIO pin (only for output pins).
         
         Args:
-            pin (int): GPIO pin number
-            state (int): Pin state (0 or 1)
-            
-        Returns:
-            Dict: Updated pin state
+            pin (int): The GPIO pin number
+            state (int): GPIO.HIGH or GPIO.LOW
             
         Raises:
-            ValueError: If pin number or state is invalid
-            RuntimeError: If hardware access fails or pin is not configured
+            ValueError: If pin or state is invalid, or if pin is not configured as output
+            RuntimeError: If pin is not configured
         """
         if pin not in self.valid_pins:
             raise ValueError(f"Invalid GPIO pin: {pin}")
@@ -218,29 +199,27 @@ class GPIOManager:
         if state not in [GPIO.LOW, GPIO.HIGH]:
             raise ValueError(f"Invalid state value: {state}")
             
+        # Check if pin is configured
         if self.is_raspberry_pi:
-            try:
-                # Check if pin is configured as output
-                mode = RPI_GPIO.gpio_function(pin)
-                if mode != RPI_GPIO.OUT:
-                    raise ValueError("Cannot set state of input pin")
-                    
-                RPI_GPIO.output(pin, state)
-            except Exception as e:
-                raise RuntimeError(f"Hardware access failed: {str(e)}")
+            mode = self._pin_modes.get(pin)
+            if not mode:
+                raise RuntimeError(f"Pin {pin} is not configured")
         else:
-            pin_data = self._mock_states.get(pin)
-            if not pin_data or not pin_data.get('configured'):
-                raise RuntimeError("Pin not configured")
-                
-            if pin_data['mode'] == GPIO.IN:
-                raise ValueError("Cannot set state of input pin")
-                
-            GPIO.output(pin, state)
-            self._mock_states[pin]['state'] = state
+            if not self._mock_states[pin]['configured']:
+                raise RuntimeError(f"Pin {pin} is not configured")
+            mode = self._mock_states[pin]['mode']
             
-        return self.get_pin_state(pin)
-        
+        # Check if pin is output
+        if mode != GPIO.OUT:
+            raise ValueError(f"Pin {pin} is not configured as output")
+            
+        # Set the state
+        if self.is_raspberry_pi:
+            RPI_GPIO.output(pin, state)
+            self.pins[pin] = state  # Track output pin state
+        else:
+            self._mock_states[pin]['state'] = state
+
     def cleanup(self) -> None:
         """
         Clean up GPIO resources.
@@ -251,6 +230,8 @@ class GPIOManager:
         try:
             if self.is_raspberry_pi:
                 RPI_GPIO.cleanup()
+                self.pins.clear()
+                self._pin_modes.clear()
             else:
                 GPIO.cleanup()
                 # Reset all pins to default state
@@ -258,6 +239,7 @@ class GPIOManager:
                     pin: {'mode': GPIO.IN, 'state': GPIO.LOW, 'configured': False}
                     for pin in self.valid_pins
                 }
+            self._pin_callbacks.clear()
         except Exception as e:
             raise RuntimeError(f"Cleanup failed: {str(e)}")
         logger.info("GPIO cleanup completed")

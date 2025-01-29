@@ -6,20 +6,57 @@ from unittest.mock import patch, MagicMock
 from datetime import datetime
 import time
 import signal
+import subprocess
 
 def test_get_version(client):
     """Test getting current version info"""
+    test_hash = 'abc1234'
+    test_date = '2024-03-20 10:00:00'
+    test_branch = 'main'
+    
     with patch('routes.system_routes.get_git_info') as mock_git:
         mock_git.return_value = {
-            'commit_hash': 'abc1234',
-            'commit_date': '2024-03-20 10:00:00'
+            'commit_hash': test_hash,
+            'commit_date': test_date,
+            'branch': test_branch
         }
         
         response = client.get('/api/v1/system/version')
         assert response.status_code == 200
         data = response.json
+        
         assert 'commit_hash' in data
+        assert data['commit_hash'] == test_hash
         assert 'commit_date' in data
+        assert data['commit_date'] == test_date
+        assert 'branch' in data
+        assert data['branch'] == test_branch
+
+def test_get_version_uninitialized(client):
+    """Test getting version info when git is not initialized"""
+    with patch('routes.system_routes.get_git_info') as mock_git:
+        mock_git.side_effect = subprocess.CalledProcessError(128, 'git rev-parse HEAD')
+        
+        response = client.get('/api/v1/system/version')
+        assert response.status_code == 200
+        data = response.json
+        
+        assert data['commit_hash'] == 'uninitialized'
+        assert 'commit_date' in data
+        assert data['branch'] == 'main'
+
+def test_get_version_error(client):
+    """Test getting version info when an unexpected error occurs"""
+    with patch('routes.system_routes.get_git_info') as mock_git:
+        mock_git.side_effect = Exception("Unexpected error")
+        
+        response = client.get('/api/v1/system/version')
+        assert response.status_code == 200
+        data = response.json
+        
+        assert data['commit_hash'] == 'error'
+        assert 'commit_date' in data
+        assert data['branch'] == 'unknown'
 
 def test_check_update_available(client):
     """Test checking for available updates"""
@@ -43,26 +80,81 @@ def test_check_update_not_available(client):
         assert data['update_available'] is False
         assert len(data['changes']) == 0
 
+def test_check_update_error(client):
+    """Test error handling when checking for updates"""
+    with patch('routes.system_routes.check_remote_updates') as mock_check:
+        mock_check.side_effect = RuntimeError("Failed to fetch updates")
+        
+        response = client.get('/api/v1/system/check-update')
+        assert response.status_code == 500
+        data = response.json
+        assert data['status'] == 'error'
+        assert 'Failed to fetch updates' in data['message']
+
 def test_apply_update_success(client):
-    """Test successful update application"""
+    """Test successful system update"""
     with patch('subprocess.run') as mock_run:
-        mock_run.return_value = MagicMock(returncode=0)
+        mock_run.return_value.returncode = 0
         
         response = client.post('/api/v1/system/update')
         assert response.status_code == 200
         data = response.json
         assert data['status'] == 'success'
+        assert 'Update applied successfully' in data['message']
+        
+        # Verify all required commands were called
+        calls = [call[0][0] for call in mock_run.call_args_list]
+        assert ['git', 'pull', 'origin', 'AIgen2'] in calls
+        assert ['pip', 'install', '-r', 'requirements.txt'] in calls
+        assert ['sudo', 'systemctl', 'restart', 'birdbox'] in calls
 
-def test_apply_update_failure(client):
-    """Test failed update application"""
+def test_apply_update_git_error(client):
+    """Test handling git errors during update"""
     with patch('subprocess.run') as mock_run:
-        mock_run.side_effect = Exception('Update failed')
+        mock_run.side_effect = subprocess.CalledProcessError(
+            1, 'git pull', output=b'Failed to pull updates'
+        )
         
         response = client.post('/api/v1/system/update')
         assert response.status_code == 500
         data = response.json
         assert data['status'] == 'error'
         assert 'Update failed' in data['message']
+        assert 'Failed to pull updates' in data['message']
+
+def test_apply_update_pip_error(client):
+    """Test handling pip errors during update"""
+    def mock_run_with_pip_error(*args, **kwargs):
+        if args[0][0] == 'pip':
+            raise subprocess.CalledProcessError(
+                1, 'pip install', output=b'Failed to install dependencies'
+            )
+        return MagicMock(returncode=0)
+    
+    with patch('subprocess.run', side_effect=mock_run_with_pip_error):
+        response = client.post('/api/v1/system/update')
+        assert response.status_code == 500
+        data = response.json
+        assert data['status'] == 'error'
+        assert 'Update failed' in data['message']
+        assert 'Failed to install dependencies' in data['message']
+
+def test_apply_update_restart_error(client):
+    """Test handling service restart errors during update"""
+    def mock_run_with_restart_error(*args, **kwargs):
+        if args[0][0] == 'sudo':
+            raise subprocess.CalledProcessError(
+                1, 'systemctl restart', output=b'Failed to restart service'
+            )
+        return MagicMock(returncode=0)
+    
+    with patch('subprocess.run', side_effect=mock_run_with_restart_error):
+        response = client.post('/api/v1/system/update')
+        assert response.status_code == 500
+        data = response.json
+        assert data['status'] == 'error'
+        assert 'Update failed' in data['message']
+        assert 'Failed to restart service' in data['message']
 
 def test_git_info_error_handling():
     """Test git info error handling"""

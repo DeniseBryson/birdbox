@@ -4,9 +4,15 @@ These tests will only run on actual Raspberry Pi hardware
 """
 import pytest
 import platform
-import RPi.GPIO as RPI_GPIO
-from ..manager import GPIOManager
 import os
+
+# Try to import RPi.GPIO, but don't fail if not available
+try:
+    import RPi.GPIO as RPI_GPIO
+except ImportError:
+    RPI_GPIO = None
+
+from ..manager import GPIOManager, GPIO
 
 def is_raspberry_pi():
     """Check if we're running on a Raspberry Pi."""
@@ -49,37 +55,38 @@ def test_output_functionality(hw_gpio):
     PIN = 18  # This is a safe pin to test with
     
     # Configure as output
-    state = hw_gpio.configure_pin(PIN, "OUT")
-    assert state['mode'] == "OUT"
-    assert state['pin'] == PIN
+    hw_gpio.configure_pin(PIN, GPIO.OUT)
+    configured_pins = hw_gpio.get_configured_pins()
+    assert PIN in configured_pins
+    assert configured_pins[PIN] == GPIO.OUT
     
     # Set HIGH
-    state = hw_gpio.set_pin_state(PIN, 1)
-    assert state['state'] == 1
+    hw_gpio.set_pin_state(PIN, GPIO.HIGH)
+    assert hw_gpio.get_pin_state(PIN) == GPIO.HIGH
     
     # Verify actual hardware state
-    assert RPI_GPIO.input(PIN) == 1
+    assert RPI_GPIO.input(PIN) == GPIO.HIGH
     
     # Set LOW
-    state = hw_gpio.set_pin_state(PIN, 0)
-    assert state['state'] == 0
+    hw_gpio.set_pin_state(PIN, GPIO.LOW)
+    assert hw_gpio.get_pin_state(PIN) == GPIO.LOW
     
     # Verify actual hardware state
-    assert RPI_GPIO.input(PIN) == 0
+    assert RPI_GPIO.input(PIN) == GPIO.LOW
 
 def test_input_functionality(hw_gpio):
     """Test input functionality on real hardware."""
     PIN = 24  # Using a different pin for input
     
     # Configure as input
-    state = hw_gpio.configure_pin(PIN, "IN")
-    assert state['mode'] == "IN"
-    assert state['pin'] == PIN
+    hw_gpio.configure_pin(PIN, GPIO.IN)
+    configured_pins = hw_gpio.get_configured_pins()
+    assert PIN in configured_pins
+    assert configured_pins[PIN] == GPIO.IN
     
-    # Read state
+    # Read state (should be either HIGH or LOW)
     state = hw_gpio.get_pin_state(PIN)
-    assert 'state' in state
-    assert state['pin'] == PIN
+    assert state in [GPIO.HIGH, GPIO.LOW]
 
 def test_multiple_pins(hw_gpio):
     """Test handling multiple pins simultaneously."""
@@ -87,18 +94,21 @@ def test_multiple_pins(hw_gpio):
     INPUT_PIN = 23
     
     # Configure pins
-    out_state = hw_gpio.configure_pin(OUTPUT_PIN, "OUT")
-    in_state = hw_gpio.configure_pin(INPUT_PIN, "IN")
+    hw_gpio.configure_pin(OUTPUT_PIN, GPIO.OUT)
+    hw_gpio.configure_pin(INPUT_PIN, GPIO.IN)
     
-    assert out_state['mode'] == "OUT"
-    assert in_state['mode'] == "IN"
+    configured_pins = hw_gpio.get_configured_pins()
+    assert OUTPUT_PIN in configured_pins
+    assert INPUT_PIN in configured_pins
+    assert configured_pins[OUTPUT_PIN] == GPIO.OUT
+    assert configured_pins[INPUT_PIN] == GPIO.IN
     
     # Test output pin
-    hw_gpio.set_pin_state(OUTPUT_PIN, 1)
-    assert hw_gpio.get_pin_state(OUTPUT_PIN)['state'] == 1
+    hw_gpio.set_pin_state(OUTPUT_PIN, GPIO.HIGH)
+    assert hw_gpio.get_pin_state(OUTPUT_PIN) == GPIO.HIGH
     
-    hw_gpio.set_pin_state(OUTPUT_PIN, 0)
-    assert hw_gpio.get_pin_state(OUTPUT_PIN)['state'] == 0
+    hw_gpio.set_pin_state(OUTPUT_PIN, GPIO.LOW)
+    assert hw_gpio.get_pin_state(OUTPUT_PIN) == GPIO.LOW
     
-    # Input pin should maintain its state
-    assert hw_gpio.get_pin_state(INPUT_PIN)['mode'] == "IN" 
+    # Input pin should maintain its mode
+    assert configured_pins[INPUT_PIN] == GPIO.IN 

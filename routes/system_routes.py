@@ -12,22 +12,32 @@ system_bp = Blueprint('system', __name__)
 def get_git_info():
     """Get current git commit information"""
     try:
+        base_dir = os.path.dirname(os.path.dirname(__file__))
+        
+        # Check if .git directory exists
+        if not os.path.exists(os.path.join(base_dir, '.git')):
+            # Initialize git repository if it doesn't exist
+            subprocess.run(['git', 'init'], cwd=base_dir, check=True)
+            subprocess.run(['git', 'add', '.'], cwd=base_dir, check=True)
+            subprocess.run(['git', 'commit', '-m', 'Initial commit'], cwd=base_dir, check=True)
+            current_app.logger.info("Initialized new git repository")
+        
         # Get current commit hash
         commit_hash = subprocess.check_output(
             ['git', 'rev-parse', 'HEAD'],
-            cwd=os.path.dirname(os.path.dirname(__file__))
+            cwd=base_dir
         ).decode().strip()
         
         # Get commit date
         commit_date = subprocess.check_output(
             ['git', 'show', '-s', '--format=%ci', commit_hash],
-            cwd=os.path.dirname(os.path.dirname(__file__))
+            cwd=base_dir
         ).decode().strip()
         
         # Get branch name
         branch = subprocess.check_output(
             ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
-            cwd=os.path.dirname(os.path.dirname(__file__))
+            cwd=base_dir
         ).decode().strip()
         
         return {
@@ -35,9 +45,19 @@ def get_git_info():
             'commit_date': commit_date,
             'branch': branch
         }
-    except Exception as e:
+    except subprocess.CalledProcessError as e:
+        current_app.logger.error(f"Git command failed: {str(e)}")
+        if e.output:
+            current_app.logger.error(f"Command output: {e.output.decode()}")
         return {
-            'commit_hash': 'unknown',
+            'commit_hash': 'uninitialized',
+            'commit_date': datetime.now().isoformat(),
+            'branch': 'main'
+        }
+    except Exception as e:
+        current_app.logger.error(f"Error getting git info: {str(e)}")
+        return {
+            'commit_hash': 'error',
             'commit_date': datetime.now().isoformat(),
             'branch': 'unknown'
         }
