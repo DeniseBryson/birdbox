@@ -1,7 +1,7 @@
 """
 BirdsOS - Main Application Entry Point
 """
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 from routes.main_routes import main_bp
 from routes.api_routes import api_bp
 from routes.system_routes import system_bp
@@ -33,6 +33,12 @@ def create_app():
     @app.errorhandler(404)
     def page_not_found(e):
         return render_template('404.html'), 404
+    
+    @app.route('/health')
+    # TODO: Add more comprehensive health checks
+    def health_check():
+        """Simple health check endpoint for setup verification."""
+        return jsonify({"status": "healthy"}), 200
     
     return app
 

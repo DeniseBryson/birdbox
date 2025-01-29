@@ -6,4 +6,5 @@ opencv-python==4.9.0.80
 numpy==1.26.3
 pillow==10.2.0
 pytest==7.4.4
-RPi.GPIO==0.7.1; platform_machine == 'armv7l'  # Only install on Raspberry Pi 
+RPi.GPIO==0.7.1; platform_machine == 'armv7l'  # Only install on Raspberry Pi
+gunicorn==21.2.0 
