@@ -9,14 +9,11 @@ import RPi.GPIO as RPI_GPIO
 from features.gpio.manager import GPIOManager
 
 @pytest.fixture(scope='session', autouse=True)
-def setup_gpio():
-    """Setup GPIO mode for all tests."""
+def setup_gpio_session():
+    """Setup GPIO mode for the test session."""
     try:
         # Clean up any existing GPIO configuration
         RPI_GPIO.cleanup()
-        # Set mode to BCM
-        RPI_GPIO.setmode(RPI_GPIO.BCM)
-        RPI_GPIO.setwarnings(False)
         yield
     finally:
         try:
@@ -25,13 +22,25 @@ def setup_gpio():
             pass  # Ignore cleanup errors
 
 @pytest.fixture(autouse=True)
+def setup_gpio():
+    """Setup GPIO mode before each test."""
+    # Set mode to BCM
+    RPI_GPIO.setmode(RPI_GPIO.BCM)
+    RPI_GPIO.setwarnings(False)
+    yield
+    try:
+        RPI_GPIO.cleanup()
+    except:
+        pass  # Ignore cleanup errors
+
+@pytest.fixture
 def gpio_manager():
     """Create a fresh GPIO manager for each test."""
     manager = GPIOManager()
     yield manager
     manager.cleanup()
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def mock_gpio():
     """Mock GPIO hardware interface for all tests."""
     with patch('features.gpio.hardware.GPIO') as mock:

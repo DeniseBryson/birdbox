@@ -81,13 +81,8 @@ class GPIOManager:
                     self._initialized = True
                     logger.info("Initialized real Raspberry Pi GPIO in BCM mode")
                     
-                    # Initialize all pins as inputs by default for safety
-                    for pin in self.valid_pins:
-                        try:
-                            RPI_GPIO.setup(pin, RPI_GPIO.IN)
-                            self._pin_modes[pin] = GPIO.IN
-                        except Exception as e:
-                            logger.warning(f"Could not initialize pin {pin}: {str(e)}")
+                    # Initialize pin tracking but don't configure them yet
+                    self._pin_modes = {pin: None for pin in self.valid_pins}
             except Exception as e:
                 logger.error(f"Failed to initialize GPIO: {str(e)}")
                 raise RuntimeError(f"Hardware access failed: {str(e)}")
@@ -157,6 +152,9 @@ class GPIOManager:
             
         if self.is_raspberry_pi:
             mode = self._pin_modes.get(pin)
+            if mode is None:
+                raise RuntimeError(f"Pin {pin} is not configured")
+                
             if mode == GPIO.OUT:
                 # For output pins, we maintain our own state tracking
                 return self.pins.get(pin, GPIO.LOW)
@@ -260,7 +258,7 @@ class GPIOManager:
             if self.is_raspberry_pi:
                 RPI_GPIO.cleanup()
                 self.pins.clear()
-                self._pin_modes.clear()
+                self._pin_modes = {pin: None for pin in self.valid_pins}  # Reset all pins to unconfigured
             else:
                 GPIO.cleanup()
                 # Reset all pins to default state
