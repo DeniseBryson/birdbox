@@ -19,6 +19,11 @@ def mock_gpio_manager():
 class TestGPIOErrorHandling:
     """Test suite for GPIO error handling."""
     
+    def setup_method(self, method):
+        """Set up before each test."""
+        from features.gpio.routes import gpio_manager
+        gpio_manager._initialized = True  # Ensure manager is initialized
+    
     def teardown_method(self, method):
         """Clean up after each test."""
         from features.gpio.routes import gpio_manager
@@ -147,10 +152,11 @@ class TestGPIOErrorHandling:
     def test_input_pin_write(self, client):
         """Test handling of attempts to write to input pins."""
         # Configure pin as input
-        client.post('/gpio/api/configure', json={
+        configure_response = client.post('/gpio/api/configure', json={
             'pin': 18,
             'mode': GPIO.IN
         })
+        assert configure_response.status_code == 200, f"Failed to configure pin: {configure_response.data}"
         
         # Try to set state
         response = client.post('/gpio/api/state', json={

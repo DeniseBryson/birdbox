@@ -66,10 +66,11 @@ class GPIOManager:
         if self.is_raspberry_pi:
             try:
                 # Always set BCM mode for consistency
-                RPI_GPIO.setmode(RPI_GPIO.BCM)
-                RPI_GPIO.setwarnings(False)  # Disable warnings about pin states
-                self._initialized = True
-                logger.info("Initialized real Raspberry Pi GPIO in BCM mode")
+                if not self._initialized:
+                    RPI_GPIO.setmode(RPI_GPIO.BCM)
+                    RPI_GPIO.setwarnings(False)  # Disable warnings about pin states
+                    self._initialized = True
+                    logger.info("Initialized real Raspberry Pi GPIO in BCM mode")
             except Exception as e:
                 logger.error(f"Failed to initialize GPIO: {str(e)}")
                 raise RuntimeError(f"Hardware access failed: {str(e)}")
