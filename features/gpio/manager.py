@@ -44,6 +44,7 @@ class GPIOManager:
         self._mock_states = {}
         self._pin_callbacks = {}
         self._pin_modes = {}
+        self._initialized = False
         
         # Get valid pins for this hardware
         self.valid_pins = get_valid_pins()
@@ -64,14 +65,17 @@ class GPIOManager:
         """Set up GPIO system based on platform."""
         if self.is_raspberry_pi:
             try:
+                # Always set BCM mode for consistency
                 RPI_GPIO.setmode(RPI_GPIO.BCM)
                 RPI_GPIO.setwarnings(False)  # Disable warnings about pin states
+                self._initialized = True
                 logger.info("Initialized real Raspberry Pi GPIO in BCM mode")
             except Exception as e:
                 logger.error(f"Failed to initialize GPIO: {str(e)}")
                 raise RuntimeError(f"Hardware access failed: {str(e)}")
         else:
             self._setup_mock()
+            self._initialized = True
 
     def _setup_mock(self) -> None:
         """Set up mock GPIO implementation."""
@@ -159,6 +163,9 @@ class GPIOManager:
             ValueError: If pin or mode is invalid
             RuntimeError: If hardware access fails
         """
+        if not self._initialized:
+            raise RuntimeError("GPIO system not initialized")
+            
         if pin not in self.valid_pins:
             raise ValueError(f"Invalid GPIO pin: {pin}")
             
@@ -166,15 +173,19 @@ class GPIOManager:
             raise ValueError(f"Invalid mode: {mode}")
             
         if self.is_raspberry_pi:
-            RPI_GPIO.setup(pin, RPI_GPIO.IN if mode == GPIO.IN else RPI_GPIO.OUT)
-            self._pin_modes[pin] = mode
-            
-            if mode == GPIO.IN and callback:
-                # Remove any existing event detection
-                RPI_GPIO.remove_event_detect(pin)
-                # Add both rising and falling edge detection
-                RPI_GPIO.add_event_detect(pin, RPI_GPIO.BOTH, callback=callback)
-                self._pin_callbacks[pin] = callback
+            try:
+                RPI_GPIO.setup(pin, RPI_GPIO.IN if mode == GPIO.IN else RPI_GPIO.OUT)
+                self._pin_modes[pin] = mode
+                
+                if mode == GPIO.IN and callback:
+                    # Remove any existing event detection
+                    RPI_GPIO.remove_event_detect(pin)
+                    # Add both rising and falling edge detection
+                    RPI_GPIO.add_event_detect(pin, RPI_GPIO.BOTH, callback=callback)
+                    self._pin_callbacks[pin] = callback
+            except Exception as e:
+                logger.error(f"Failed to configure pin {pin}: {str(e)}")
+                raise RuntimeError(f"Failed to configure pin {pin}: {str(e)}")
         else:
             self._mock_states[pin]['mode'] = mode
             self._mock_states[pin]['configured'] = True
