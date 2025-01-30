@@ -15,10 +15,12 @@ class GPIOController {
             const response = await fetch('/gpio/api/pins');
             const data = await response.json();
             
-            if (data.status === 'success') {
+            if (data.pins) {  // Check for pins array instead of status
                 this.populatePinDropdown(data.pins);
                 this.updatePinStates(data.pins);
                 this.updateOverviewTable(data.pins);
+            } else if (data.error) {
+                console.error('Error fetching GPIO pins:', data.error);
             }
         } catch (error) {
             console.error('Failed to fetch GPIO pins:', error);
@@ -32,9 +34,11 @@ class GPIOController {
         // Store current selection
         const currentValue = this.selectedPin ? this.selectedPin.toString() : '';
         
+        // Clear existing options
         select.innerHTML = '<option value="">Choose a pin...</option>';
         
-        pins.forEach(pin => {
+        // Sort pins by number for better display
+        pins.sort((a, b) => a.number - b.number).forEach(pin => {
             const option = document.createElement('option');
             option.value = pin.number;
             option.textContent = `GPIO ${pin.number} (${pin.configured ? pin.mode : 'Unconfigured'})`;
@@ -71,7 +75,8 @@ class GPIOController {
         
         tbody.innerHTML = '';
         
-        pins.forEach(pin => {
+        // Sort pins by number for consistent display
+        pins.sort((a, b) => a.number - b.number).forEach(pin => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td class="pin-number">GPIO ${pin.number}</td>
@@ -94,7 +99,10 @@ class GPIOController {
     }
     
     async configurePin(mode) {
-        if (!this.selectedPin) return;
+        if (!this.selectedPin) {
+            alert('Please select a GPIO pin first');
+            return;
+        }
         
         try {
             const response = await fetch('/gpio/api/configure', {
@@ -109,13 +117,14 @@ class GPIOController {
             });
             
             const data = await response.json();
-            if (data.status === 'success') {
+            if (response.ok) {  // Check HTTP status instead of response data
                 await this.updatePinList();  // Refresh all pins
             } else {
-                console.error('Failed to configure pin:', data.message);
+                alert(`Failed to configure pin: ${data.error || 'Unknown error'}`);
             }
         } catch (error) {
             console.error('Failed to configure pin:', error);
+            alert('Failed to configure pin. Check console for details.');
         }
     }
     
@@ -133,13 +142,14 @@ class GPIOController {
             });
             
             const data = await response.json();
-            if (data.status === 'success') {
+            if (response.ok) {  // Check HTTP status instead of response data
                 await this.updatePinList();  // Refresh all pins
             } else {
-                console.error('Failed to set pin state:', data.message);
+                alert(`Failed to set pin state: ${data.error || 'Unknown error'}`);
             }
         } catch (error) {
             console.error('Failed to set pin state:', error);
+            alert('Failed to set pin state. Check console for details.');
         }
     }
     
@@ -171,6 +181,7 @@ class GPIOController {
     }
     
     startStatusUpdates() {
+        // Update every 2 seconds
         setInterval(() => this.updatePinList(), 2000);
     }
 } 
