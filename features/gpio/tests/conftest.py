@@ -12,27 +12,28 @@ from features.gpio.manager import GPIOManager
 def setup_gpio_session():
     """Setup GPIO mode for the test session."""
     try:
-        # Clean up any existing GPIO configuration
+        # Clean up any existing configuration
         RPI_GPIO.cleanup()
-        # Set mode to BCM
+        # Set mode to BCM for the entire test session
         RPI_GPIO.setmode(RPI_GPIO.BCM)
         RPI_GPIO.setwarnings(False)
         yield
     finally:
         try:
+            # Clean up at the end of the session
             RPI_GPIO.cleanup()
         except:
-            pass  # Ignore cleanup errors
+            pass
 
 @pytest.fixture
-def gpio_manager():
+def gpio_manager(setup_gpio_session):
     """Create a fresh GPIO manager for each test."""
     manager = GPIOManager()
-    # Ensure initialization
-    if not manager._initialized:
-        manager.setup()
     yield manager
-    manager.cleanup()
+    try:
+        manager.cleanup()
+    except:
+        pass  # Ignore cleanup errors in tests
 
 @pytest.fixture
 def mock_gpio():
@@ -47,7 +48,7 @@ def mock_gpio():
         yield mock
 
 @pytest.fixture
-def app():
+def app(gpio_manager):
     """Create test Flask application."""
     app = Flask(__name__,
                 template_folder='templates',    # Use root templates directory

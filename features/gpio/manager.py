@@ -52,22 +52,32 @@ class GPIOManager:
             for key, value in RPI_GPIO.RPI_INFO.items():
                 logger.info(f"  {key}: {value}")
         
+        # Initialize immediately
         self.setup()
 
     def setup(self) -> None:
         """Set up GPIO system based on platform."""
         if self.is_raspberry_pi:
             try:
-                # Clean up any existing configuration
-                RPI_GPIO.cleanup()
-                # Set BCM mode
-                RPI_GPIO.setmode(RPI_GPIO.BCM)
+                # Check if mode is already set
+                current_mode = RPI_GPIO.getmode()
+                if current_mode is None:
+                    # Only clean up if no mode is set
+                    RPI_GPIO.cleanup()
+                    RPI_GPIO.setmode(RPI_GPIO.BCM)
+                elif current_mode != RPI_GPIO.BCM:
+                    # If wrong mode, raise error
+                    raise RuntimeError(f"GPIO mode already set to {current_mode}, but BCM mode is required")
+                
                 RPI_GPIO.setwarnings(False)
                 self._initialized = True
                 logger.info("Initialized real Raspberry Pi GPIO in BCM mode")
             except Exception as e:
                 logger.error(f"Failed to initialize GPIO: {str(e)}")
                 raise RuntimeError(f"Hardware access failed: {str(e)}")
+        else:
+            self._initialized = True
+            logger.info("Initialized mock GPIO")
 
     def get_pin_state(self, pin: int) -> int:
         """Get the current state of a GPIO pin."""
@@ -145,8 +155,15 @@ class GPIOManager:
     def cleanup(self) -> None:
         """Clean up GPIO resources."""
         try:
-            if self.is_raspberry_pi:
-                RPI_GPIO.cleanup()
+            if self.is_raspberry_pi and self._initialized:
+                # Only clean up configured pins
+                configured_pins = [pin for pin, mode in self._pin_modes.items() if mode is not None]
+                if configured_pins:
+                    for pin in configured_pins:
+                        try:
+                            RPI_GPIO.cleanup(pin)
+                        except:
+                            pass
             
             # Reset all pin states
             for pin in self.valid_pins:
