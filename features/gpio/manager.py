@@ -161,3 +161,26 @@ class GPIOManager:
             raise RuntimeError(f"Cleanup failed: {str(e)}")
         
         logger.info("GPIO cleanup completed")
+
+    def get_available_pins(self) -> List[int]:
+        """
+        Get list of available GPIO pins.
+        
+        Returns:
+            List[int]: List of valid GPIO pin numbers
+        """
+        return self.valid_pins
+    
+    def get_configured_pins(self) -> Dict[int, str]:
+        """
+        Get dictionary of configured pins and their modes.
+        
+        Returns:
+            Dict[int, str]: Dictionary mapping pin numbers to their modes ('IN' or 'OUT')
+        """
+        configured = {}
+        for pin in self.valid_pins:
+            mode = self._pin_modes.get(pin)
+            if mode is not None:
+                configured[pin] = mode
+        return configured

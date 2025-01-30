@@ -14,6 +14,9 @@ def setup_gpio_session():
     try:
         # Clean up any existing GPIO configuration
         RPI_GPIO.cleanup()
+        # Set mode to BCM
+        RPI_GPIO.setmode(RPI_GPIO.BCM)
+        RPI_GPIO.setwarnings(False)
         yield
     finally:
         try:
@@ -21,22 +24,13 @@ def setup_gpio_session():
         except:
             pass  # Ignore cleanup errors
 
-@pytest.fixture(autouse=True)
-def setup_gpio():
-    """Setup GPIO mode before each test."""
-    # Set mode to BCM
-    RPI_GPIO.setmode(RPI_GPIO.BCM)
-    RPI_GPIO.setwarnings(False)
-    yield
-    try:
-        RPI_GPIO.cleanup()
-    except:
-        pass  # Ignore cleanup errors
-
 @pytest.fixture
 def gpio_manager():
     """Create a fresh GPIO manager for each test."""
     manager = GPIOManager()
+    # Ensure initialization
+    if not manager._initialized:
+        manager.setup()
     yield manager
     manager.cleanup()
 
