@@ -61,13 +61,18 @@ class GPIOManager:
             try:
                 # Check if mode is already set
                 current_mode = RPI_GPIO.getmode()
-                if current_mode is None:
-                    # Only clean up if no mode is set
-                    RPI_GPIO.cleanup()
+                
+                # If already initialized in BCM mode, we're good
+                if current_mode == RPI_GPIO.BCM and self._initialized:
+                    return
+                
+                # If no mode set or wrong mode, reinitialize
+                if current_mode is None or current_mode != RPI_GPIO.BCM:
+                    try:
+                        RPI_GPIO.cleanup()
+                    except:
+                        pass  # Ignore cleanup errors
                     RPI_GPIO.setmode(RPI_GPIO.BCM)
-                elif current_mode != RPI_GPIO.BCM:
-                    # If wrong mode, raise error
-                    raise RuntimeError(f"GPIO mode already set to {current_mode}, but BCM mode is required")
                 
                 RPI_GPIO.setwarnings(False)
                 self._initialized = True
@@ -102,6 +107,10 @@ class GPIOManager:
 
     def configure_pin(self, pin: int, mode: str, callback: Optional[Callable] = None) -> None:
         """Configure a GPIO pin with the specified mode."""
+        # Try to reinitialize if not initialized
+        if not self._initialized:
+            self.setup()
+            
         if not self._initialized:
             raise RuntimeError("GPIO system not initialized")
             
@@ -154,8 +163,11 @@ class GPIOManager:
 
     def cleanup(self) -> None:
         """Clean up GPIO resources."""
+        if not self._initialized:
+            return  # Nothing to clean up if not initialized
+            
         try:
-            if self.is_raspberry_pi and self._initialized:
+            if self.is_raspberry_pi:
                 # Only clean up configured pins
                 configured_pins = [pin for pin, mode in self._pin_modes.items() if mode is not None]
                 if configured_pins:
@@ -171,7 +183,6 @@ class GPIOManager:
                 self.pins[pin] = GPIO.LOW
             
             self._pin_callbacks.clear()
-            self._initialized = False
             
         except Exception as e:
             logger.error(f"Cleanup failed: {str(e)}")
