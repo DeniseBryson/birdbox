@@ -6,6 +6,30 @@ from flask import Flask
 from unittest.mock import patch, MagicMock
 from features.gpio.routes import gpio_bp
 import RPi.GPIO as RPI_GPIO
+from features.gpio.manager import GPIOManager
+
+@pytest.fixture(scope='session', autouse=True)
+def setup_gpio():
+    """Setup GPIO mode for all tests."""
+    try:
+        # Clean up any existing GPIO configuration
+        RPI_GPIO.cleanup()
+        # Set mode to BCM
+        RPI_GPIO.setmode(RPI_GPIO.BCM)
+        RPI_GPIO.setwarnings(False)
+        yield
+    finally:
+        try:
+            RPI_GPIO.cleanup()
+        except:
+            pass  # Ignore cleanup errors
+
+@pytest.fixture(autouse=True)
+def gpio_manager():
+    """Create a fresh GPIO manager for each test."""
+    manager = GPIOManager()
+    yield manager
+    manager.cleanup()
 
 @pytest.fixture(autouse=True)
 def mock_gpio():
@@ -38,17 +62,4 @@ def client(app):
 @pytest.fixture
 def runner(app):
     """Create test CLI runner."""
-    return app.test_cli_runner()
-
-@pytest.fixture(autouse=True)
-def setup_gpio():
-    """Setup GPIO mode for all tests."""
-    try:
-        RPI_GPIO.setmode(RPI_GPIO.BCM)
-        RPI_GPIO.setwarnings(False)
-        yield
-    finally:
-        try:
-            RPI_GPIO.cleanup()
-        except:
-            pass  # Ignore cleanup errors 
+    return app.test_cli_runner() 

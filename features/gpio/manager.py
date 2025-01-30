@@ -65,12 +65,29 @@ class GPIOManager:
         """Set up GPIO system based on platform."""
         if self.is_raspberry_pi:
             try:
-                # Always set BCM mode for consistency
+                # Always set BCM mode for consistency if not already set
                 if not self._initialized:
-                    RPI_GPIO.setmode(RPI_GPIO.BCM)
-                    RPI_GPIO.setwarnings(False)  # Disable warnings about pin states
+                    try:
+                        current_mode = RPI_GPIO.getmode()
+                        if current_mode is None:
+                            RPI_GPIO.setmode(RPI_GPIO.BCM)
+                        elif current_mode != RPI_GPIO.BCM:
+                            logger.warning(f"GPIO mode already set to {current_mode}, but BCM mode is recommended")
+                    except Exception as e:
+                        logger.error(f"Error checking GPIO mode: {str(e)}")
+                        RPI_GPIO.setmode(RPI_GPIO.BCM)
+                    
+                    RPI_GPIO.setwarnings(False)
                     self._initialized = True
                     logger.info("Initialized real Raspberry Pi GPIO in BCM mode")
+                    
+                    # Initialize all pins as inputs by default for safety
+                    for pin in self.valid_pins:
+                        try:
+                            RPI_GPIO.setup(pin, RPI_GPIO.IN)
+                            self._pin_modes[pin] = GPIO.IN
+                        except Exception as e:
+                            logger.warning(f"Could not initialize pin {pin}: {str(e)}")
             except Exception as e:
                 logger.error(f"Failed to initialize GPIO: {str(e)}")
                 raise RuntimeError(f"Hardware access failed: {str(e)}")
@@ -83,7 +100,7 @@ class GPIOManager:
         logger.info("Initialized mock GPIO implementation")
         # Initialize all pins with default state
         self._mock_states = {
-            pin: {'mode': GPIO.IN, 'state': GPIO.LOW, 'configured': False}
+            pin: {'mode': GPIO.IN, 'state': GPIO.LOW, 'configured': True}  # Set configured to True by default
             for pin in self.valid_pins
         }
         
