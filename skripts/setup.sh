@@ -44,6 +44,7 @@ pip install --upgrade pip wheel
 echo "Installing additional Python packages..."
 pip install flask-sock  # No apt package available for this
 pip install gunicorn   # Using pip for latest version
+pip install RPi.GPIO   # Ensure GPIO is available in virtual environment
 
 # Set up logging directory
 echo "Setting up logging..."

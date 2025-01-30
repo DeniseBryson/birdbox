@@ -12,13 +12,13 @@ try:
             try:
                 mode = RPI_GPIO.gpio_function(pin)
                 # If we can get the function, it's a valid GPIO pin
-                # We exclude pins that are in special function modes
-                if mode in [RPI_GPIO.IN, RPI_GPIO.OUT, RPI_GPIO.ALT0]:
+                # Only include pins that can be used for input/output
+                if mode in [RPI_GPIO.IN, RPI_GPIO.OUT]:
                     valid_pins.append(pin)
             except (ValueError, RuntimeError):
                 # Pin doesn't exist or is not a valid GPIO
                 continue
-        return sorted(valid_pins)
+        return sorted(valid_pins) if valid_pins else [2, 3, 4, 17, 27, 22, 10, 9, 11, 5, 6, 13, 19, 26, 14, 15, 18, 23, 24, 25, 8, 7, 12, 16, 20, 21]
             
 except ImportError:
     RPI_GPIO = None
