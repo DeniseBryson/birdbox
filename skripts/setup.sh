@@ -32,7 +32,7 @@ cd ${INSTALL_PATH}
 
 # Clone repository
 echo "Cloning repository..."
-git clone --depth 1 -b AIgen2 https://github.com/DeniseBryson/birdbox.git 
+git clone --depth 1 -b AIgen3 https://github.com/DeniseBryson/birdbox.git 
 
 # Set up Python environment
 echo "Setting up Python environment..."
