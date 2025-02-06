@@ -53,24 +53,26 @@ class GPIOManager:
                 is_pi = model.startswith('Raspberry Pi')
         
         self.is_raspberry_pi = is_pi and RPI_GPIO is not None
-        self.pins = {}
-        self._mock_states = {}
-        self._pin_callbacks = {}
-        self._pin_modes = {}
+        self.pins = {}  # Stores pin states for output pins
+        self._pin_modes = {}  # Stores pin modes (IN/OUT)
+        self._pin_callbacks = {}  # Stores callbacks for input pins
+        self._initialized = False
         
         # Get valid pins for this hardware
         self.valid_pins = get_valid_pins()
+        
+        # Initialize all pins as unconfigured
+        for pin in self.valid_pins:
+            self._pin_modes[pin] = None
+            self.pins[pin] = GPIO.LOW
         
         # Log hardware info
         if self.is_raspberry_pi and hasattr(RPI_GPIO, "RPI_INFO"):
             logger.info(f"Raspberry Pi Hardware Info:")
             for key, value in RPI_GPIO.RPI_INFO.items():
                 logger.info(f"  {key}: {value}")
-            logger.info(f"Available GPIO pins: {self.valid_pins}")
-        else:
-            logger.info("Running in mock mode with simulated GPIO")
-            logger.info(f"Available GPIO pins: {self.valid_pins}")
         
+        # Initialize immediately
         self.setup()
         self._initialized = True
 
@@ -85,7 +87,8 @@ class GPIOManager:
                 logger.error(f"Failed to initialize GPIO: {str(e)}")
                 raise RuntimeError(f"Hardware access failed: {str(e)}")
         else:
-            self._setup_mock()
+            self._initialized = True
+            logger.info("Initialized mock GPIO")
 
     def _setup_mock(self) -> None: 
         """Set up mock GPIO implementation."""
@@ -96,6 +99,8 @@ class GPIOManager:
             for pin in self.valid_pins
         }
         
+        logger.info("GPIO cleanup completed")
+
     def get_available_pins(self) -> List[int]:
         """
         Get list of available GPIO pins.
@@ -104,7 +109,7 @@ class GPIOManager:
             List[int]: List of valid GPIO pin numbers
         """
         return self.valid_pins
-        
+    
     def get_configured_pins(self) -> Dict[int, str]:
         """
         Get dictionary of configured pins and their modes.

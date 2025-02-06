@@ -8,12 +8,24 @@ async function getCurrentVersion() {
         const response = await fetch('/api/v1/system/version');
         const data = await response.json();
         
-        document.getElementById('commit-hash').textContent = data.commit_hash.substring(0, 7);
-        document.getElementById('commit-date').textContent = 
-            new Date(data.commit_date).toLocaleDateString();
+        const commitHash = document.getElementById('commit-hash');
+        const commitDate = document.getElementById('commit-date');
+        
+        if (data.error) {
+            commitHash.textContent = data.commit_hash;
+            commitHash.title = data.error;
+            commitDate.textContent = '';
+            return;
+        }
+        
+        commitHash.textContent = data.commit_hash.substring(0, 7);
+        commitDate.textContent = new Date(data.commit_date).toLocaleDateString();
     } catch (error) {
         console.error('Error getting version:', error);
-        document.getElementById('commit-hash').textContent = 'Error';
+        const commitHash = document.getElementById('commit-hash');
+        commitHash.textContent = 'Error';
+        commitHash.title = error.message;
+        document.getElementById('commit-date').textContent = '';
     }
 }
 
@@ -30,7 +42,11 @@ async function checkForUpdates() {
         const response = await fetch('/api/v1/system/check-update');
         const data = await response.json();
         
-        if (data.update_available) {
+        if (data.status === 'error') {
+            statusElement.textContent = `Error: ${data.message}`;
+            updateInfo.classList.add('d-none');
+            applyButton.classList.add('d-none');
+        } else if (data.update_available) {
             statusElement.textContent = 'Update available!';
             updateInfo.classList.remove('d-none');
             applyButton.classList.remove('d-none');
@@ -45,7 +61,8 @@ async function checkForUpdates() {
         }
     } catch (error) {
         console.error('Error checking for updates:', error);
-        statusElement.textContent = 'Error checking for updates';
+        document.getElementById('update-status').textContent = 
+            `Error checking for updates: ${error.message}`;
     } finally {
         document.getElementById('check-update').disabled = false;
     }

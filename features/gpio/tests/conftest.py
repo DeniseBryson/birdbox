@@ -5,8 +5,37 @@ import pytest
 from flask import Flask
 from unittest.mock import patch, MagicMock
 from features.gpio.routes import gpio_bp
+import RPi.GPIO as RPI_GPIO
+from features.gpio.manager import GPIOManager
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope='session', autouse=True)
+def setup_gpio_session():
+    """Setup GPIO mode for the test session."""
+    try:
+        # Clean up any existing configuration
+        RPI_GPIO.cleanup()
+        # Set mode to BCM for the entire test session
+        RPI_GPIO.setmode(RPI_GPIO.BCM)
+        RPI_GPIO.setwarnings(False)
+        yield
+    finally:
+        try:
+            # Clean up at the end of the session
+            RPI_GPIO.cleanup()
+        except:
+            pass
+
+@pytest.fixture
+def gpio_manager(setup_gpio_session):
+    """Create a fresh GPIO manager for each test."""
+    manager = GPIOManager()
+    yield manager
+    try:
+        manager.cleanup()
+    except:
+        pass  # Ignore cleanup errors in tests
+
+@pytest.fixture
 def mock_gpio():
     """Mock GPIO hardware interface for all tests."""
     with patch('features.gpio.hardware.GPIO') as mock:
@@ -19,7 +48,7 @@ def mock_gpio():
         yield mock
 
 @pytest.fixture
-def app():
+def app(gpio_manager):
     """Create test Flask application."""
     app = Flask(__name__,
                 template_folder='templates',    # Use root templates directory
