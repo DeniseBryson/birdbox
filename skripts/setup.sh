@@ -60,11 +60,19 @@ After=network.target
 [Service]
 User=birds
 Group=birds
-WorkingDirectory=${INSTALL_PATH}
+WorkingDirectory=${INSTALL_PATH}/birdbox
 Environment="PATH=${INSTALL_PATH}/venv/bin"
 Environment="VIRTUAL_ENV=${INSTALL_PATH}/venv"
-Environment="PYTHONPATH=${INSTALL_PATH}"
-ExecStart=${INSTALL_PATH}/venv/bin/python -m gunicorn -w 4 -b 0.0.0.0:8080 --error-logfile ${LOG_DIR}/gunicorn-error.log --access-logfile ${LOG_DIR}/gunicorn-access.log app:app
+Environment="PYTHONPATH=${INSTALL_PATH}/birdbox"
+ExecStart=${INSTALL_PATH}/venv/bin/python -m gunicorn \
+    -w 4 \
+    -b 0.0.0.0:8080 \
+    --error-logfile ${LOG_DIR}/gunicorn-error.log \
+    --access-logfile ${LOG_DIR}/gunicorn-access.log \
+    --capture-output \
+    --enable-stdio-inheritance \
+    --chdir ${INSTALL_PATH}/birdbox \
+    app:app
 Restart=always
 RestartSec=10
 

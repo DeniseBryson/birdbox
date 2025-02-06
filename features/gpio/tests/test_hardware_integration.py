@@ -33,6 +33,11 @@ pytestmark = pytest.mark.skipif(not is_raspberry_pi(),
 def hw_gpio():
     """Fixture for hardware GPIO testing."""
     RPI_GPIO.setwarnings(False)  # Disable warnings for all tests
+    
+    # Reset singleton state
+    GPIOManager._instance = None
+    GPIOManager._initialized = False
+    
     manager = GPIOManager()
     yield manager
     manager.cleanup()

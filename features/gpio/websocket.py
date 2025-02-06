@@ -47,23 +47,31 @@ def gpio_updates(ws):
         # Add this connection to active set
         active_connections.add(ws)
         
+        # Send complete initial state
+        with gpio_lock:
+            pins = gpio_manager.get_available_pins()
+            configured_pins = gpio_manager.get_configured_pins()
+            states = {
+                pin: gpio_manager.get_pin_state(pin) 
+                for pin in pins 
+                if pin in configured_pins
+            }
+            
+            ws.send(json.dumps({
+                'type': 'gpio_update',
+                'data': {
+                    'pins': pins,
+                    'states': states,
+                    'configured': configured_pins
+                }
+            }))
+        
         # Configure callbacks for all input pins
         with gpio_lock:
             pins = gpio_manager.get_available_pins()
             for pin in pins:
                 if gpio_manager._pin_modes.get(pin) == GPIO.IN:
                     gpio_manager.configure_pin(pin, GPIO.IN, callback=lambda channel, p=pin: pin_state_changed(p))
-        
-        # Send initial states
-        pins = gpio_manager.get_available_pins()
-        states = {pin: gpio_manager.get_pin_state(pin) for pin in pins}
-        ws.send(json.dumps({
-            'type': 'gpio_update',
-            'data': {
-                'pins': pins,
-                'states': states
-            }
-        }))
         
         # Keep connection alive and periodically update output pin states
         while True:

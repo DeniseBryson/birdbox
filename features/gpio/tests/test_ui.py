@@ -6,6 +6,14 @@ import json
 from flask import url_for
 from flask.testing import FlaskClient
 from features.gpio.hardware import GPIO
+from features.gpio.manager import GPIOManager
+
+@pytest.fixture(autouse=True)
+def reset_gpio_manager():
+    """Reset GPIO manager singleton state before each test."""
+    GPIOManager._instance = None
+    GPIOManager._initialized = False
+    yield
 
 @pytest.fixture
 def client(app) -> FlaskClient:

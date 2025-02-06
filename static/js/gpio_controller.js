@@ -6,8 +6,8 @@ class GPIOController {
     constructor() {
         this.selectedPin = null;
         this.setupEventListeners();
-        this.updatePinList();
-        this.startStatusUpdates();
+        this.updatePinList();  // Initial state
+        this.setupWebSocket(); // Replace startStatusUpdates with WebSocket
     }
     
     async updatePinList() {
@@ -134,7 +134,7 @@ class GPIOController {
             
             const data = await response.json();
             if (data.status === 'success') {
-                await this.updatePinList();  // Refresh all pins
+                // No need to refresh all pins, as the state is already updated
             } else {
                 console.error('Failed to set pin state:', data.message);
             }
@@ -152,7 +152,7 @@ class GPIOController {
             pinSelect.addEventListener('change', (e) => {
                 this.selectedPin = parseInt(e.target.value);
                 if (this.selectedPin) {
-                    this.updatePinList();
+                    //this.updatePinList();  // <-- This API call is unnecessary
                 }
             });
         }
@@ -170,7 +170,20 @@ class GPIOController {
         }
     }
     
-    startStatusUpdates() {
-        setInterval(() => this.updatePinList(), 2000);
+    setupWebSocket() {
+        const ws = new WebSocket(`ws://${window.location.host}/ws/gpio-updates`);
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'gpio_update') {
+                this.updatePinStates(data.data.states);
+                this.updateOverviewTable(data.data.pins);
+            }
+        };
+
+        ws.onclose = () => {
+            // Attempt to reconnect after a delay
+            setTimeout(() => this.setupWebSocket(), 2000);
+        };
     }
 } 

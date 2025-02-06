@@ -31,6 +31,10 @@ def gpio_manager():
         RPI_GPIO.setmode(RPI_GPIO.BCM)
         RPI_GPIO.setwarnings(False)
     
+    # Reset the singleton state before each test
+    GPIOManager._instance = None
+    GPIOManager._initialized = False
+    
     manager = GPIOManager()
     yield manager
     
@@ -98,6 +102,36 @@ def test_configure_pin(gpio_manager):
     with pytest.raises(ValueError):
         gpio_manager.configure_pin(999, GPIO.IN)
 
+    # Test callback functionality
+    callback_called = False
+    def test_callback(channel):
+        nonlocal callback_called
+        callback_called = True
+    
+    # Configure input pin with callback
+    gpio_manager.configure_pin(pin, GPIO.IN, callback=test_callback)
+    
+    # Simulate pin change (for mock GPIO)
+    if not gpio_manager.is_raspberry_pi:
+        gpio_manager._mock_states[pin]['state'] = GPIO.HIGH
+        if 'callback' in gpio_manager._mock_states[pin]:
+            gpio_manager._mock_states[pin]['callback'](pin)
+        
+    assert callback_called, "Callback was not triggered"
+    
+    # Test removing callback
+    callback_called = False
+    gpio_manager.configure_pin(pin, GPIO.IN, callback=None)
+    
+    # Simulate pin change again
+    if not gpio_manager.is_raspberry_pi:
+        gpio_manager._mock_states[pin]['state'] = GPIO.LOW
+        if 'callback' in gpio_manager._mock_states[pin]:
+            gpio_manager._mock_states[pin]['callback'](pin)
+            
+    assert not callback_called, "Callback was triggered after removal"
+
+    
 @pytest.mark.skipif(is_raspberry_pi(), reason="Mock-specific test")
 def test_set_pin_state_mock(gpio_manager):
     """Test setting pin state in mock environment."""

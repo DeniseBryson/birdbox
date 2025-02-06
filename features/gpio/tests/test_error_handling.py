@@ -6,10 +6,15 @@ from flask import url_for
 import json
 from unittest.mock import patch, MagicMock
 from features.gpio.hardware import GPIO
+from features.gpio.manager import GPIOManager
 
 @pytest.fixture
 def mock_gpio_manager():
     """Mock GPIO manager."""
+    # Reset singleton state
+    GPIOManager._instance = None
+    GPIOManager._initialized = False
+    
     with patch('features.gpio.routes.gpio_manager') as mock:
         # Set up available pins
         mock.get_available_pins.return_value = [18]

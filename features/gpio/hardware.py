@@ -31,13 +31,19 @@ except ImportError:
 class GPIO:
     """GPIO constants and mock implementation."""
     
-    # Pin modes
+    # Pin modes (match RPi.GPIO constants for consistency)
     IN = "IN"
     OUT = "OUT"
     
     # Pin states
     LOW = 0
     HIGH = 1
+    
+    # Mode mapping for RPi.GPIO compatibility
+    MODE_MAP = {
+        "IN": 1,  # RPi.GPIO.IN
+        "OUT": 0  # RPi.GPIO.OUT
+    }
     
     # Get valid pins dynamically
     VALID_PINS = get_valid_pins()
@@ -51,6 +57,13 @@ class GPIO:
             raise ValueError(f"Invalid mode: {mode}")
     
     @staticmethod
+    def input(pin: int) -> int:
+        """Mock input for GPIO pin."""
+        if pin not in GPIO.VALID_PINS:
+            raise ValueError(f"Invalid GPIO pin: {pin}")
+        return GPIO.LOW  # Default mock state
+    
+    @staticmethod
     def output(pin: int, state: int) -> None:
         """Mock output for GPIO pin."""
         if pin not in GPIO.VALID_PINS:
@@ -62,3 +75,24 @@ class GPIO:
     def cleanup() -> None:
         """Mock cleanup for GPIO resources."""
         pass 
+
+def setup_input_pin(pin, edge_detection=False):
+    """
+    Set up a pin as input with optional edge detection.
+    Pull-up/down is optional but recommended for stable readings.
+    """
+    if RPI_GPIO:  # Real Raspberry Pi environment
+        # Basic input setup
+        RPI_GPIO.setup(pin, RPI_GPIO.IN)  # Simple input setup without pull-up/down
+        
+        if edge_detection:
+            try:
+                RPI_GPIO.add_event_detect(pin, RPI_GPIO.RISING,
+                                        callback=self._handle_input_change,
+                                        bouncetime=200)
+            except RuntimeError as e:
+                logger.error(f"Failed to set up edge detection on pin {pin}: {e}")
+                raise GPIOSetupError(f"Edge detection setup failed for pin {pin}. "
+                                   f"Ensure valid pin number and proper permissions.")
+    else:  # Mock environment
+        GPIO.setup(pin, GPIO.IN) 
