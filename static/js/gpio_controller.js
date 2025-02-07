@@ -91,7 +91,7 @@ class GPIOController {
                                 onclick="gpioController.togglePinState(${pin.number}, ${pin.state ? 0 : 1})">
                             Toggle
                         </button>
-                    ` : '<span class="no-action">-</span>'}
+                    ` : pin.mode === 'IN' ? 'Input Pin' : '-'}
                 </td>
             `;
             tbody.appendChild(tr);
@@ -117,8 +117,9 @@ class GPIOController {
             });
             
             const data = await response.json();
-            if (response.ok) {  // Check HTTP status instead of response data
-                await this.updatePinList();  // Refresh all pins
+            if (response.ok) {
+                // Refresh all pins after mode change
+                await this.updatePinList();
             } else {
                 alert(`Failed to configure pin: ${data.error || 'Unknown error'}`);
             }
@@ -130,7 +131,17 @@ class GPIOController {
     
     async togglePinState(pin, newState) {
         try {
-            const response = await fetch('/gpio/api/state', {
+            // First check if pin is configured as output
+            const response = await fetch('/gpio/api/pins');
+            const data = await response.json();
+            const pinInfo = data.pins.find(p => p.number === pin);
+            
+            if (!pinInfo || !pinInfo.configured || pinInfo.mode !== 'OUT') {
+                alert('This pin is not configured as an output pin');
+                return;
+            }
+            
+            const setResponse = await fetch('/gpio/api/state', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -141,11 +152,12 @@ class GPIOController {
                 })
             });
             
-            const data = await response.json();
-            if (data.status === 'success') {
-                // No need to refresh all pins, as the state is already updated
+            const setData = await setResponse.json();
+            if (setData.status === 'success') {
+                // Update the UI to reflect the new state
+                await this.updatePinList();
             } else {
-                alert(`Failed to set pin state: ${data.error || 'Unknown error'}`);
+                alert(`Failed to set pin state: ${setData.error || 'Unknown error'}`);
             }
         } catch (error) {
             console.error('Failed to set pin state:', error);

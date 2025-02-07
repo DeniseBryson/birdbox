@@ -50,22 +50,22 @@ def get_gpio_pins():
             pins = []
             
             for pin in available_pins:
-                try:
-                    pin_data = {
-                        'number': pin,
-                        'mode': configured_pins.get(pin, GPIO.IN),
-                        'configured': pin in configured_pins
-                    }
-                    
-                    if pin_data['configured']:
+                pin_data = {
+                    'number': pin,
+                    'mode': configured_pins.get(pin, GPIO.IN),
+                    'configured': pin in configured_pins,
+                    'state': GPIO.LOW  # Default state for unconfigured pins
+                }
+                
+                # Only try to get state if pin is configured
+                if pin in configured_pins:
+                    try:
                         pin_data['state'] = gpio_manager.get_pin_state(pin)
-                    else:
-                        pin_data['state'] = GPIO.LOW
-                        
-                    pins.append(pin_data)
-                except Exception as e:
-                    logger.error(f"Error getting state for pin {pin}: {str(e)}")
-                    continue
+                    except Exception as e:
+                        logger.debug(f"Could not get state for configured pin {pin}: {str(e)}")
+                        # Keep default state
+                
+                pins.append(pin_data)
             
             return jsonify({'pins': pins})
         except Exception as e:
@@ -144,6 +144,14 @@ def set_gpio_state():
                 
             if state not in [GPIO.LOW, GPIO.HIGH]:
                 return jsonify({'error': 'Invalid state value'}), 400
+            
+            # Check if pin is configured as output before setting state
+            configured_pins = gpio_manager.get_configured_pins()
+            if pin not in configured_pins:
+                return jsonify({'error': f'Pin {pin} is not configured'}), 400
+            
+            if configured_pins[pin] != GPIO.OUT:
+                return jsonify({'error': f'Pin {pin} is configured as input and cannot have its state set'}), 400
                 
             gpio_manager.set_pin_state(pin, state)
             return jsonify({
