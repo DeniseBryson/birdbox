@@ -32,7 +32,7 @@ cd ${INSTALL_PATH}
 
 # Clone repository
 echo "Cloning repository..."
-git clone --depth 1 -b AIgen3 https://github.com/DeniseBryson/birdbox.git 
+git clone --depth 1 -b AIgen3 https://github.com/DeniseBryson/birdbox.git .  # Note the dot at the end
 
 # Set up Python environment
 echo "Setting up Python environment..."
@@ -61,10 +61,10 @@ After=network.target
 [Service]
 User=birds
 Group=birds
-WorkingDirectory=${INSTALL_PATH}/birdbox
+WorkingDirectory=${INSTALL_PATH}
 Environment="PATH=${INSTALL_PATH}/venv/bin"
 Environment="VIRTUAL_ENV=${INSTALL_PATH}/venv"
-Environment="PYTHONPATH=${INSTALL_PATH}/birdbox"
+Environment="PYTHONPATH=${INSTALL_PATH}"
 ExecStart=${INSTALL_PATH}/venv/bin/python -m gunicorn \
     -w 4 \
     -b 0.0.0.0:8080 \
@@ -72,7 +72,7 @@ ExecStart=${INSTALL_PATH}/venv/bin/python -m gunicorn \
     --access-logfile ${LOG_DIR}/gunicorn-access.log \
     --capture-output \
     --enable-stdio-inheritance \
-    --chdir ${INSTALL_PATH}/birdbox \
+    --chdir ${INSTALL_PATH} \
     app:app
 Restart=always
 RestartSec=10
