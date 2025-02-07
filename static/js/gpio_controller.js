@@ -5,26 +5,49 @@
 class GPIOController {
     constructor() {
         this.selectedPin = null;
+        this.pins = [];  // Cache of pin states
         this.setupEventListeners();
-        this.updatePinList();  // Initial state
-        this.setupWebSocket(); // Replace startStatusUpdates with WebSocket
+        this.setupWebSocket();
     }
     
-    async updatePinList() {
-        try {
-            const response = await fetch('/gpio/api/pins');
-            const data = await response.json();
-            
-            if (data.pins) {  // Check for pins array instead of status
-                this.populatePinDropdown(data.pins);
-                this.updatePinStates(data.pins);
-                this.updateOverviewTable(data.pins);
-            } else if (data.error) {
-                console.error('Error fetching GPIO pins:', data.error);
+    setupWebSocket() {
+        const ws = new WebSocket(`ws://${window.location.host}/ws/gpio-updates`);
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'gpio_update') {
+                // Update our cache
+                if (data.data.pins) {
+                    this.pins = data.data.pins;
+                    this.populatePinDropdown(this.pins);
+                    this.updateOverviewTable(this.pins);
+                }
+                if (data.data.states) {
+                    // Update specific pin states
+                    Object.entries(data.data.states).forEach(([pin, state]) => {
+                        const pinObj = this.pins.find(p => p.number === parseInt(pin));
+                        if (pinObj) {
+                            pinObj.state = state;
+                            this.updatePinStates([pinObj]);
+                        }
+                    });
+                }
             }
-        } catch (error) {
-            console.error('Failed to fetch GPIO pins:', error);
-        }
+        };
+
+        ws.onclose = () => {
+            // Attempt to reconnect after a delay
+            console.log('WebSocket closed, attempting to reconnect...');
+            setTimeout(() => this.setupWebSocket(), 2000);
+        };
+        
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+        
+        ws.onopen = () => {
+            console.log('WebSocket connected');
+        };
     }
     
     populatePinDropdown(pins) {
@@ -117,12 +140,10 @@ class GPIOController {
             });
             
             const data = await response.json();
-            if (response.ok) {
-                // Refresh all pins after mode change
-                await this.updatePinList();
-            } else {
+            if (!response.ok) {
                 alert(`Failed to configure pin: ${data.error || 'Unknown error'}`);
             }
+            // No need to refresh - WebSocket will send updates
         } catch (error) {
             console.error('Failed to configure pin:', error);
             alert('Failed to configure pin. Check console for details.');
@@ -131,17 +152,15 @@ class GPIOController {
     
     async togglePinState(pin, newState) {
         try {
-            // First check if pin is configured as output
-            const response = await fetch('/gpio/api/pins');
-            const data = await response.json();
-            const pinInfo = data.pins.find(p => p.number === pin);
+            // Use cached pin info instead of making a request
+            const pinInfo = this.pins.find(p => p.number === pin);
             
             if (!pinInfo || !pinInfo.configured || pinInfo.mode !== 'OUT') {
                 alert('This pin is not configured as an output pin');
                 return;
             }
             
-            const setResponse = await fetch('/gpio/api/state', {
+            const response = await fetch('/gpio/api/state', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -152,13 +171,11 @@ class GPIOController {
                 })
             });
             
-            const setData = await setResponse.json();
-            if (setData.status === 'success') {
-                // Update the UI to reflect the new state
-                await this.updatePinList();
-            } else {
-                alert(`Failed to set pin state: ${setData.error || 'Unknown error'}`);
+            const data = await response.json();
+            if (!response.ok) {
+                alert(`Failed to set pin state: ${data.error || 'Unknown error'}`);
             }
+            // No need to refresh - WebSocket will send updates
         } catch (error) {
             console.error('Failed to set pin state:', error);
             alert('Failed to set pin state. Check console for details.');
@@ -173,9 +190,6 @@ class GPIOController {
         if (pinSelect) {
             pinSelect.addEventListener('change', (e) => {
                 this.selectedPin = parseInt(e.target.value);
-                if (this.selectedPin) {
-                    //this.updatePinList();  // <-- This API call is unnecessary
-                }
             });
         }
         
@@ -190,22 +204,5 @@ class GPIOController {
                 this.configurePin('OUT');
             });
         }
-    }
-    
-    setupWebSocket() {
-        const ws = new WebSocket(`ws://${window.location.host}/ws/gpio-updates`);
-        
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.type === 'gpio_update') {
-                this.updatePinStates(data.data.states);
-                this.updateOverviewTable(data.data.pins);
-            }
-        };
-
-        ws.onclose = () => {
-            // Attempt to reconnect after a delay
-            setTimeout(() => this.setupWebSocket(), 2000);
-        };
     }
 } 

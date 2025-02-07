@@ -5,6 +5,7 @@ This module provides the API endpoints for GPIO control.
 """
 from flask import Blueprint, jsonify, request, render_template
 from .manager import GPIOManager, GPIO
+from .websocket import sock  # Import WebSocket handler
 import threading
 import logging
 from werkzeug.exceptions import BadRequest
@@ -23,6 +24,9 @@ gpio_bp = Blueprint('gpio', __name__,
                    template_folder='../../templates')
 gpio_manager = GPIOManager()
 gpio_lock = threading.Lock()
+
+# Register WebSocket with this blueprint
+sock.init_app(gpio_bp)
 
 @gpio_bp.route('/')
 def control():

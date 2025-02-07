@@ -155,31 +155,50 @@ class GPIOManager:
             logger.error(f"Invalid GPIO pin: {pin}")
             raise ValueError(f"Invalid GPIO pin: {pin}")
         
-        if pin not in self._pin_modes:
-            logger.error(f"Pin {pin} is not configured")
-            raise RuntimeError(f"Pin {pin} is not configured")
-        
         if self.is_raspberry_pi:
-            mode = self._pin_modes.get(pin)
-            if mode == GPIO.OUT:
-                # For output pins, we maintain our own state tracking
-                 # TODO: Do we need to set the default state here? Or why ist it LOW?
-                state = self.pins.get(pin, GPIO.LOW)
-                logger.debug(f"Output pin {pin} state from cache: {state}")
-                return state
-            else:
-                # For input pins, we read directly
-                try:
-                    state = GPIO.HIGH if RPI_GPIO.input(pin) else GPIO.LOW
-                    logger.debug(f"Input pin {pin} current state: {state}")
+            try:
+                # First check our cached mode
+                mode = self._pin_modes.get(pin)
+                logger.debug(f"Cached mode for pin {pin}: {mode}")
+                
+                # If no cached mode, try to get it from hardware
+                if not mode:
+                    hw_mode = RPI_GPIO.gpio_function(pin)
+                    logger.debug(f"Hardware mode for pin {pin}: {hw_mode}")
+                    if hw_mode in [RPI_GPIO.IN, RPI_GPIO.OUT]:
+                        mode = "IN" if hw_mode == RPI_GPIO.IN else "OUT"
+                        self._pin_modes[pin] = mode
+                        logger.debug(f"Updated cached mode for pin {pin} to {mode}")
+                    else:
+                        logger.debug(f"Pin {pin} is not configured (mode: {hw_mode})")
+                        return GPIO.LOW  # Default state for unconfigured pins
+                
+                # Now handle based on mode
+                if mode == GPIO.OUT:
+                    # For output pins, we maintain our own state tracking
+                    state = self.pins.get(pin, GPIO.LOW)
+                    logger.debug(f"Output pin {pin} state from cache: {state}")
                     return state
-                except Exception as e:
-                    logger.error(f"Failed to read RPi pin {pin} state: {str(e)}")
-                    raise RuntimeError(f"Failed to read pin state: {str(e)}")
+                elif mode == GPIO.IN:
+                    # For input pins, we read directly
+                    try:
+                        state = GPIO.HIGH if RPI_GPIO.input(pin) else GPIO.LOW
+                        logger.debug(f"Input pin {pin} current state: {state}")
+                        return state
+                    except Exception as e:
+                        logger.debug(f"Failed to read input pin {pin}, returning LOW: {str(e)}")
+                        return GPIO.LOW
+                else:
+                    logger.debug(f"Pin {pin} has unknown mode {mode}, returning LOW")
+                    return GPIO.LOW
+                    
+            except Exception as e:
+                logger.debug(f"Error reading pin {pin} state, returning LOW: {str(e)}")
+                return GPIO.LOW
         else:
             if not self._mock_states[pin]['configured']:
-                logger.error(f"Mock pin {pin} is not configured")
-                raise RuntimeError(f"Pin {pin} is not configured")
+                logger.debug(f"Mock pin {pin} is not configured, returning LOW")
+                return GPIO.LOW
             state = self._mock_states[pin]['state']
             logger.debug(f"Mock pin {pin} state: {state}")
             return state
