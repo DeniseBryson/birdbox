@@ -89,3 +89,5 @@ sudo systemctl restart birdbox
 
 echo "Setup complete!"
 echo "Access the web interface at: http://$(hostname -I | cut -d' ' -f1):8080"
+
+#TODO: RUN TESTS BUT ASK USER IF THEY WANT TO RUN THEM SINCE IT WILL CHANGE PIN STATES

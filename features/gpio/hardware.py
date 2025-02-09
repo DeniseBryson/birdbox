@@ -1,98 +1,186 @@
 """
 GPIO Hardware Constants and Utilities
+STABLE - Hardware interface with singleton pattern
 """
+from collections.abc import Callable
+import logging
+from typing import Literal, Final, TypeAlias
+# For real hardware
 try:
     import RPi.GPIO as RPI_GPIO
-    
-    def get_valid_pins():
+except ImportError:
+    raise RuntimeError("Raspberry Pi GPIO library not found")
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Type hints for GPIO values
+PinState = Literal[0, 1, -1]  # LOW, HIGH, UNDEFINED
+PinMode = Literal[0, 1]  # OUT, IN
+PullUpDown = Literal[20, 21, 22]  # PUD_OFF, PUD_DOWN, PUD_UP
+
+# GPIO Constants
+HIGH: Final[PinState] = 1
+LOW: Final[PinState] = 0
+UNDEFINED: Final[PinState] = -1
+IN: Final[PinMode] = 1
+OUT: Final[PinMode] = 0
+PUD_OFF: Final[PullUpDown] = 20
+PUD_UP: Final[PullUpDown] = 22
+PUD_DOWN: Final[PullUpDown] = 21
+BOTH: Final = 33
+BCM: Final = 11
+
+EventCallback: TypeAlias = Callable[[int, int], object]
+
+class GPIOHardware:
+    """
+    Manages GPIO operations with support for real Raspberry Pi hardware.
+    Implements singleton pattern to ensure single point of GPIO control.
+    """
+    # Singleton instance
+    _instance = None
+    _initialized = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(GPIOHardware, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self): 
+        # Only run initialization once
+        if self._initialized:
+            return
+            
+        self._initialized = True
+        self.gpio = RPI_GPIO
+        self.gpio.setmode(BCM)
+        logger.info("GPIO Manager initialized in BCM mode")
+        self._valid_pins = None  # Initialize as None, will be populated on first get_valid_pins call
+        self.RPI_INFO = RPI_GPIO.RPI_INFO
+
+    def get_valid_pins(self):   
         """Get valid GPIO pins by checking gpio_function for all possible pins."""
+        if self._valid_pins is not None:
+            return self._valid_pins
+        
         valid_pins = []
         # Check all possible BCM pins (0-27 should cover all Pi models)
         for pin in range(28):
             try:
-                mode = RPI_GPIO.gpio_function(pin)
+                mode = self.gpio.gpio_function(pin)
                 # If we can get the function, it's a valid GPIO pin
                 # Only include pins that can be used for input/output
-                if mode in [RPI_GPIO.IN, RPI_GPIO.OUT]:
+                if mode in [IN, OUT]:
                     valid_pins.append(pin)
             except (ValueError, RuntimeError):
                 # Pin doesn't exist or is not a valid GPIO
                 continue
-        return sorted(valid_pins) if valid_pins else [2, 3, 4, 17, 27, 22, 10, 9, 11, 5, 6, 13, 19, 26, 14, 15, 18, 23, 24, 25, 8, 7, 12, 16, 20, 21]
-            
-except ImportError:
-    RPI_GPIO = None
-    
-    def get_valid_pins():
-        """Return default valid pins for mock environment."""
-        # Default pins for mock environment (40-pin header)
-        return [2, 3, 4, 17, 27, 22, 10, 9, 11, 5, 6, 13, 19, 26, 14, 15, 18, 23, 24, 25, 8, 7, 12, 16, 20, 21]
+        
+        if not valid_pins:
+            raise RuntimeError("No valid pins found")
+        
+        self._valid_pins = sorted(valid_pins)
+        return self._valid_pins
 
-class GPIO:
-    """GPIO constants and mock implementation."""
-    
-    # Pin modes (match RPi.GPIO constants for consistency)
-    IN = "IN"
-    OUT = "OUT"
-    
-    # Pin states
-    LOW = 0
-    HIGH = 1
-    
-    # Mode mapping for RPi.GPIO compatibility
-    MODE_MAP = {
-        "IN": 1,  # RPi.GPIO.IN
-        "OUT": 0  # RPi.GPIO.OUT
-    }
-    
-    # Get valid pins dynamically
-    VALID_PINS = get_valid_pins()
-    
-    @staticmethod
-    def setup(pin: int, mode: str) -> None:
-        """Mock setup for GPIO pin."""
-        if pin not in GPIO.VALID_PINS:
-            raise ValueError(f"Invalid GPIO pin: {pin}")
-        if mode not in [GPIO.IN, GPIO.OUT]:
-            raise ValueError(f"Invalid mode: {mode}")
-    
-    @staticmethod
-    def input(pin: int) -> int:
-        """Mock input for GPIO pin."""
-        if pin not in GPIO.VALID_PINS:
-            raise ValueError(f"Invalid GPIO pin: {pin}")
-        return GPIO.LOW  # Default mock state
-    
-    @staticmethod
-    def output(pin: int, state: int) -> None:
-        """Mock output for GPIO pin."""
-        if pin not in GPIO.VALID_PINS:
-            raise ValueError(f"Invalid GPIO pin: {pin}")
-        if state not in [GPIO.LOW, GPIO.HIGH]:
-            raise ValueError(f"Invalid state: {state}")
-    
-    @staticmethod
-    def cleanup() -> None:
-        """Mock cleanup for GPIO resources."""
-        pass 
+    def setup_input_pin(self,
+                       pin: int, 
+                       pull_up_down:PullUpDown=PUD_OFF, 
+                       edge_detection:bool=False,
+                       bouncetime:int=200,
+                       callback:EventCallback=None
+                       ):
+        """
+        Set up a pin as input with optional edge detection.
+        Pull-up/down is optional but recommended for stable readings.
 
-def setup_input_pin(pin, edge_detection=False):
-    """
-    Set up a pin as input with optional edge detection.
-    Pull-up/down is optional but recommended for stable readings.
-    """
-    if RPI_GPIO:  # Real Raspberry Pi environment
-        # Basic input setup
-        RPI_GPIO.setup(pin, RPI_GPIO.IN)  # Simple input setup without pull-up/down
+        Args:
+            pin: The GPIO pin number (BCM numbering)
+            pull_up_down: Pull up/down resistor setting (PUD_OFF, PUD_UP, or PUD_DOWN)
+            edge_detection: Whether to enable edge detection
+            bouncetime: Bounce time in ms for edge detection
+            callback: Required if edge_detection is True, must not be provided if edge_detection is False.
+                     Will be called with (pin, state) where state is the current pin state.
+        """
+        if pull_up_down not in [PUD_OFF, PUD_UP, PUD_DOWN]:
+            raise ValueError("Invalid pull-up/down value")
+        
+        self.gpio.setup(pin, IN, pull_up_down=pull_up_down)
+        pud_name = {PUD_OFF: "OFF", PUD_UP: "UP", PUD_DOWN: "DOWN"}[pull_up_down]
+        logger.info(f"Setup pin {pin} as input with pull-up/pull-down value '{pud_name}'")
+
+        if (edge_detection and not callback) or (not edge_detection and callback):
+            raise ValueError("Callback must be provided with edge_detection=True and must not be provided with edge_detection=False")
         
         if edge_detection:
             try:
-                RPI_GPIO.add_event_detect(pin, RPI_GPIO.RISING,
-                                        callback=self._handle_input_change,
-                                        bouncetime=200)
+                # Create a wrapper that includes the pin state
+                def wrapped_callback(pin):
+                    state = self.get_pin_state(pin)
+                    callback(pin, state)
+
+                self.gpio.add_event_detect(
+                    pin, 
+                    BOTH,
+                    callback=wrapped_callback,
+                    bouncetime=bouncetime
+                )
+                logger.debug(f"Set up edge detection on pin {pin} with state-aware callback")
             except RuntimeError as e:
                 logger.error(f"Failed to set up edge detection on pin {pin}: {e}")
-                raise GPIOSetupError(f"Edge detection setup failed for pin {pin}. "
-                                   f"Ensure valid pin number and proper permissions.")
-    else:  # Mock environment
-        GPIO.setup(pin, GPIO.IN) 
+                raise RuntimeError(f"Edge detection setup failed for pin {pin}. "
+                                 f"Ensure valid pin number and proper permissions.")
+
+    def setup_output_pin(self, pin: int, initial_state: PinState|None = None):
+        """
+        Set up a pin as output with optional initial state.
+
+        Args:
+            pin: The GPIO pin number (BCM numbering)
+            initial_state: Initial state for the pin (HIGH or LOW), None for no initial state
+        """
+        if initial_state is not None and initial_state not in [HIGH, LOW]:
+            raise ValueError("Invalid initial state, must be HIGH or LOW")
+
+        self.gpio.setup(pin, OUT, pull_up_down=PUD_OFF, initial=initial_state)
+        logger.info(f"Setup pin {pin} as output with initial state {initial_state}")
+    
+    def get_pin_state(self, pin: int) -> PinState:
+        """
+        Get the current state of a GPIO pin.
+        """
+        if pin not in self.get_valid_pins():
+            raise ValueError("Invalid pin number")
+        
+        return self.gpio.input(pin)
+
+    def set_output_state(self, pin: int, state: PinState):
+        """
+        Set state of pin in output mode.
+
+        Args:
+            pin: The GPIO pin number (BCM numbering)
+            state: State for the pin (HIGH or LOW)
+        """
+        if pin not in self.get_valid_pins():
+            raise ValueError("Invalid pin number")
+        
+        if state not in [HIGH, LOW]:
+            raise ValueError("Invalid initial state, must be HIGH or LOW")
+
+        self.gpio.output(pin, state)
+        logger.info(f"Set pin {pin} state to {state}")
+
+    def cleanup(self):
+        """
+        Clean up all GPIO resources.
+        """
+        if self.gpio:
+            self.gpio.cleanup()
+            logger.info("GPIO resources cleaned up")
+            self._valid_pins = None  # Reset valid pins on cleanup
+        else:
+            logger.info("GPIO library not found, skipping cleanup")
+
+   

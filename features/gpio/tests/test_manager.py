@@ -1,222 +1,185 @@
 """
-Tests for GPIO Manager functionality
+Test suite for GPIO Manager
 """
 import pytest
-import platform
-import os
+from unittest.mock import Mock, patch
+import logging
+from features.gpio.hardware import (
+    HIGH, LOW, IN, OUT, PUD_OFF, UNDEFINED,
+    GPIOHardware as HW
+)
+from features.gpio.manager import GPIOManager
 
-# Try to import RPi.GPIO, but don't fail if not available
-try:
-    import RPi.GPIO as RPI_GPIO
-except ImportError:
-    RPI_GPIO = None
-
-from ..manager import GPIOManager, GPIO
-
-def is_raspberry_pi():
-    """Check if we're running on a real Raspberry Pi."""
-    try:
-        with open('/sys/firmware/devicetree/base/model') as f:
-            print('We are running the test on a Raspberry Pi')
-            return 'Raspberry Pi' in f.read() and RPI_GPIO is not None
-    except:
-        print('We are running the test in a mock environment')
-        return False
-
-@pytest.fixture
-def gpio_manager():
-    """Fixture providing a GPIO manager instance."""
-    if is_raspberry_pi():
-        # Set up GPIO mode for real hardware
-        RPI_GPIO.setmode(RPI_GPIO.BCM)
-        RPI_GPIO.setwarnings(False)
-    
-    # Reset the singleton state before each test
+@pytest.fixture(autouse=True)
+def reset_singleton():
+    """Reset the singleton instance before each test"""
     GPIOManager._instance = None
     GPIOManager._initialized = False
-    
+    yield
+
+@pytest.fixture
+def mock_hardware():
+    """Mock the hardware interface"""
+    with patch('features.gpio.manager.HW') as mock:
+        # Set up common GPIO constants on the mock
+        mock.IN = IN
+        mock.OUT = OUT
+        mock.HIGH = HIGH
+        mock.LOW = LOW
+        mock.PUD_OFF = PUD_OFF
+        mock.UNDEFINED = UNDEFINED
+        yield mock
+
+@pytest.fixture
+def gpio_manager(mock_hardware):
+    """Creates a GPIOManager instance with mocked hardware"""
     manager = GPIOManager()
-    yield manager
-    
-    # Proper cleanup
-    manager.cleanup()
-    if is_raspberry_pi():
-        RPI_GPIO.cleanup()
+    return manager
 
-def test_gpio_initialization(gpio_manager):
-    """Test GPIO manager initializes correctly."""
-    assert gpio_manager.is_raspberry_pi == is_raspberry_pi()
-    if not gpio_manager.is_raspberry_pi:
-        assert isinstance(gpio_manager._mock_states, dict)
-        assert len(gpio_manager._mock_states) == len(gpio_manager.get_available_pins())
+@pytest.fixture
+def mock_logger():
+    with patch('features.gpio.manager.logger') as mock:
+        yield mock
 
-def test_available_pins(gpio_manager):
-    """Test getting available GPIO pins."""
-    pins = gpio_manager.get_available_pins()
-    assert isinstance(pins, list)
-    assert len(pins) > 0
-    assert all(isinstance(pin, int) for pin in pins)
+class TestGPIOManager:
+    
+    def test_singleton_pattern(self, gpio_manager):
+        """Test that GPIOManager implements singleton pattern correctly"""
+        manager1 = GPIOManager()
+        manager2 = GPIOManager()
+        assert manager1 is manager2
+        assert manager1 is gpio_manager
+    
+    def test_get_available_pins(self, gpio_manager, mock_hardware):
+        """Test getting available pins delegates to hardware"""
+        mock_hardware.get_valid_pins.return_value = [2, 3, 4]
+        pins = gpio_manager.get_available_pins()
+        assert pins == [2, 3, 4]
+        mock_hardware.get_valid_pins.assert_called_once()
 
-def test_pin_state(gpio_manager):
-    """Test getting pin state."""
-    pin = gpio_manager.get_available_pins()[0]
-    
-    # Configure pin first
-    gpio_manager.configure_pin(pin, GPIO.IN)
-    state = gpio_manager.get_pin_state(pin)
-    
-    # These checks work for both real and mock GPIO
-    assert isinstance(state, int)
-    assert state in [GPIO.LOW, GPIO.HIGH]
-    
-    # Test invalid pin
-    with pytest.raises(ValueError):
-        gpio_manager.get_pin_state(999)
+    def test_configure_input_pin(self, gpio_manager, mock_hardware):
+        """Test configuring a pin as input"""
+        pin = 18
+        callback = Mock()
         
-    # Test unconfigured pin
-    unconfigured_pin = gpio_manager.get_available_pins()[-1]
-    with pytest.raises(RuntimeError):
-        gpio_manager.get_pin_state(unconfigured_pin)
-
-def test_configure_pin(gpio_manager):
-    """Test configuring pin mode."""
-    pin = gpio_manager.get_available_pins()[0]
-    
-    # Test setting as input
-    gpio_manager.configure_pin(pin, GPIO.IN)
-    configured_pins = gpio_manager.get_configured_pins()
-    assert pin in configured_pins
-    assert configured_pins[pin] == GPIO.IN
-    
-    # Test setting as output
-    gpio_manager.configure_pin(pin, GPIO.OUT)
-    configured_pins = gpio_manager.get_configured_pins()
-    assert pin in configured_pins
-    assert configured_pins[pin] == GPIO.OUT
-    
-    # Test invalid mode
-    with pytest.raises(ValueError):
-        gpio_manager.configure_pin(pin, 'INVALID')
+        gpio_manager.configure_pin(pin, IN, callback)
         
-    # Test invalid pin
-    with pytest.raises(ValueError):
-        gpio_manager.configure_pin(999, GPIO.IN)
-
-    # Test callback functionality
-    callback_called = False
-    def test_callback(channel):
-        nonlocal callback_called
-        callback_called = True
-    
-    # Configure input pin with callback
-    gpio_manager.configure_pin(pin, GPIO.IN, callback=test_callback)
-    
-    # Simulate pin change (for mock GPIO)
-    if not gpio_manager.is_raspberry_pi:
-        gpio_manager._mock_states[pin]['state'] = GPIO.HIGH
-        if 'callback' in gpio_manager._mock_states[pin]:
-            gpio_manager._mock_states[pin]['callback'](pin)
+        # Verify hardware calls
+        mock_hardware.setup_input_pin.assert_called_once_with(
+            pin,
+            edge_detection=True,
+            callback=callback
+        )
         
-    assert callback_called, "Callback was not triggered"
-    
-    # Test removing callback
-    callback_called = False
-    gpio_manager.configure_pin(pin, GPIO.IN, callback=None)
-    
-    # Simulate pin change again
-    if not gpio_manager.is_raspberry_pi:
-        gpio_manager._mock_states[pin]['state'] = GPIO.LOW
-        if 'callback' in gpio_manager._mock_states[pin]:
-            gpio_manager._mock_states[pin]['callback'](pin)
-            
-    assert not callback_called, "Callback was triggered after removal"
+        # Verify internal state
+        assert gpio_manager._pin_modes[pin] == IN
+        assert pin not in gpio_manager.output_pin_states
+        assert pin not in gpio_manager._output_pin_callbacks
 
-    
-@pytest.mark.skipif(is_raspberry_pi(), reason="Mock-specific test")
-def test_set_pin_state_mock(gpio_manager):
-    """Test setting pin state in mock environment."""
-    pin = gpio_manager.get_available_pins()[0]
-    unconfigured_pin = gpio_manager.get_available_pins()[-1]
-    input_pin = gpio_manager.get_available_pins()[1]
-    
-    # Test setting state on unconfigured pin
-    with pytest.raises(RuntimeError):
-        gpio_manager.set_pin_state(unconfigured_pin, GPIO.HIGH)
-    
-    # Configure pins
-    gpio_manager.configure_pin(pin, GPIO.OUT)
-    gpio_manager.configure_pin(input_pin, GPIO.IN)
-    
-    # Test setting HIGH
-    gpio_manager.set_pin_state(pin, GPIO.HIGH)
-    assert gpio_manager.get_pin_state(pin) == GPIO.HIGH
-    
-    # Test setting LOW
-    gpio_manager.set_pin_state(pin, GPIO.LOW)
-    assert gpio_manager.get_pin_state(pin) == GPIO.LOW
-    
-    # Test invalid state
-    with pytest.raises(ValueError):
-        gpio_manager.set_pin_state(pin, 2)
-    
-    # Test setting state on input pin
-    with pytest.raises(ValueError):
-        gpio_manager.set_pin_state(input_pin, GPIO.HIGH)
+    def test_configure_output_pin(self, gpio_manager, mock_hardware):
+        """Test configuring a pin as output"""
+        pin = 18
+        callback = Mock()
+        
+        gpio_manager.configure_pin(pin, OUT, callback)
+        
+        # Verify hardware calls
+        mock_hardware.setup_output_pin.assert_called_once_with(
+            pin,
+            initial_state=HIGH
+        )
+        
+        # Verify internal state
+        assert gpio_manager._pin_modes[pin] == OUT
+        assert gpio_manager.output_pin_states[pin] == HIGH
+        assert gpio_manager._output_pin_callbacks[pin] == callback
+        
+        # Verify callback was triggered with initial state
+        callback.assert_called_once_with(pin)
 
-@pytest.mark.skipif(is_raspberry_pi(), reason="Mock-specific test")
-def test_cleanup_mock(gpio_manager):
-    """Test GPIO cleanup in mock environment."""
-    test_pins = gpio_manager.get_available_pins()[:2]
-    
-    gpio_manager.configure_pin(test_pins[0], GPIO.OUT)
-    gpio_manager.configure_pin(test_pins[1], GPIO.IN)
-    gpio_manager.set_pin_state(test_pins[0], GPIO.HIGH)
-    
-    # Verify mock states
-    assert gpio_manager._mock_states[test_pins[0]]['mode'] == GPIO.OUT
-    assert gpio_manager._mock_states[test_pins[0]]['state'] == GPIO.HIGH
-    assert gpio_manager._mock_states[test_pins[1]]['mode'] == GPIO.IN
-    
-    gpio_manager.cleanup()
-    
-    # Verify reset states
-    for pin in test_pins:
-        assert gpio_manager._mock_states[pin]['mode'] == GPIO.IN
-        assert gpio_manager._mock_states[pin]['state'] == GPIO.LOW
-        assert not gpio_manager._mock_states[pin]['configured']
+    def test_get_pin_state_input_pin(self, gpio_manager, mock_hardware):
+        """Test getting state of an input pin"""
+        pin = 18
+        gpio_manager._pin_modes[pin] = IN
+        mock_hardware.get_pin_state.return_value = HIGH
+        
+        state = gpio_manager.get_pin_state(pin)
+        assert state == HIGH
+        mock_hardware.get_pin_state.assert_called_once_with(pin)
 
-@pytest.mark.skipif(not is_raspberry_pi(), reason="Hardware tests only run on Raspberry Pi")
-def test_hardware_specific(gpio_manager):
-    """Test features specific to real hardware."""
-    assert gpio_manager.is_raspberry_pi
-    pin = 18  # Common GPIO pin for testing
-    
-    # Set up pin
-    gpio_manager.configure_pin(pin, GPIO.OUT)
-    
-    # Test HIGH
-    gpio_manager.set_pin_state(pin, GPIO.HIGH)
-    assert gpio_manager.get_pin_state(pin) == GPIO.HIGH
-    
-    # Test LOW
-    gpio_manager.set_pin_state(pin, GPIO.LOW)
-    assert gpio_manager.get_pin_state(pin) == GPIO.LOW
+    def test_get_pin_state_output_pin(self, gpio_manager, mock_hardware):
+        """Test getting state of an output pin"""
+        pin = 18
+        gpio_manager._pin_modes[pin] = OUT
+        gpio_manager.output_pin_states[pin] = LOW
+        
+        state = gpio_manager.get_pin_state(pin)
+        assert state == LOW
+        mock_hardware.get_pin_state.assert_not_called()
 
-@pytest.mark.skipif(not is_raspberry_pi(), reason="Hardware tests only run on Raspberry Pi")
-def test_hardware_cleanup(gpio_manager):
-    """Test cleanup on real hardware."""
-    pin = 18
-    
-    # Configure and set pin
-    gpio_manager.configure_pin(pin, GPIO.OUT)
-    gpio_manager.set_pin_state(pin, GPIO.HIGH)
-    
-    # Verify state
-    assert gpio_manager.get_pin_state(pin) == GPIO.HIGH
-    
-    # Cleanup
-    gpio_manager.cleanup()
-    
-    # Should be able to configure pin again
-    gpio_manager.configure_pin(pin, GPIO.OUT)
-    assert gpio_manager.get_pin_state(pin) == GPIO.LOW 
+    def test_get_pin_state_unconfigured(self, gpio_manager, mock_hardware):
+        """Test getting state of an unconfigured pin"""
+        pin = 18
+        mock_hardware.get_valid_pins.return_value = [pin]
+        
+        state = gpio_manager.get_pin_state(pin)
+        assert state == UNDEFINED
+
+    def test_get_pin_state_invalid_pin(self, gpio_manager, mock_hardware):
+        """Test getting state of an invalid pin"""
+        pin = 999
+        mock_hardware.get_valid_pins.return_value = [18]
+        
+        state = gpio_manager.get_pin_state(pin)
+        assert state == UNDEFINED
+
+    def test_set_pin_state(self, gpio_manager, mock_hardware):
+        """Test setting pin state"""
+        pin = 18
+        gpio_manager._pin_modes[pin] = OUT
+        callback = Mock()
+        gpio_manager._output_pin_callbacks[pin] = callback
+        
+        gpio_manager.set_pin_state(pin, HIGH)
+        
+        # Verify hardware call
+        mock_hardware.set_output_state.assert_called_once_with(pin, HIGH)
+        
+        # Verify internal state updated
+        assert gpio_manager.output_pin_states[pin] == HIGH
+        
+        # Verify callback triggered
+        callback.assert_called_once_with(pin)
+
+    def test_set_pin_state_input_pin(self, gpio_manager):
+        """Test setting state of an input pin fails"""
+        pin = 18
+        gpio_manager._pin_modes[pin] = IN
+        
+        with pytest.raises(ValueError, match="not configured as output"):
+            gpio_manager.set_pin_state(pin, HIGH)
+
+    def test_set_pin_state_unconfigured(self, gpio_manager):
+        """Test setting state of an unconfigured pin fails"""
+        pin = 18
+        
+        with pytest.raises(RuntimeError, match="not configured"):
+            gpio_manager.set_pin_state(pin, HIGH)
+
+    def test_cleanup(self, gpio_manager, mock_hardware):
+        """Test cleanup"""
+        # Setup some state
+        pin = 18
+        gpio_manager._pin_modes[pin] = OUT
+        gpio_manager.output_pin_states[pin] = HIGH
+        gpio_manager._output_pin_callbacks[pin] = Mock()
+        
+        gpio_manager.cleanup()
+        
+        # Verify hardware cleanup
+        mock_hardware.cleanup.assert_called_once()
+        
+        # Verify internal state cleared
+        assert not gpio_manager._pin_modes
+        assert not gpio_manager.output_pin_states
+        assert not gpio_manager._output_pin_callbacks 
