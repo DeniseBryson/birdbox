@@ -1,3 +1,4 @@
+# pyright: reportPrivateUsage=false
 """
 Test suite for GPIO routes
 """
@@ -6,9 +7,10 @@ import json
 from unittest.mock import Mock, patch
 from flask import Flask
 from flask_sock import Sock
+from flask.testing import FlaskClient
 from ..routes import gpio_bp, gpio_manager, active_connections
 from ..hardware import (
-    GPIOHardware, HIGH, LOW, IN, OUT, UNDEFINED,
+     HIGH, LOW, IN, OUT, UNDEFINED,
     PUD_OFF, PUD_UP, PUD_DOWN, BOTH, BCM
 )
 
@@ -21,7 +23,7 @@ def app():
     return app
 
 @pytest.fixture
-def client(app):
+def client(app: Flask) -> FlaskClient:
     """Create test client"""
     return app.test_client()
 
@@ -55,13 +57,13 @@ def mock_hardware():
 
 class TestGPIORoutes:
     
-    def test_control_page(self, client):
+    def test_control_page(self, client: FlaskClient):
         """Test GPIO control page renders"""
         response = client.get('/gpio/')
         assert response.status_code == 200
         assert b'html' in response.data
 
-    def test_configure_pin_input(self, client, mock_hardware):
+    def test_configure_pin_input(self, client: FlaskClient, mock_hardware: Mock):
         """Test configuring a pin as input"""
         response = client.post('/gpio/api/configure', 
                              json={'pin': 18, 'mode': IN})
@@ -76,7 +78,7 @@ class TestGPIORoutes:
         mock_hardware.setup_input_pin.assert_called_once()
         assert gpio_manager._pin_modes[18] == IN
 
-    def test_configure_pin_output(self, client, mock_hardware):
+    def test_configure_pin_output(self, client: FlaskClient, mock_hardware: Mock):
         """Test configuring a pin as output"""
         response = client.post('/gpio/api/configure', 
                              json={'pin': 18, 'mode': OUT})
@@ -92,7 +94,7 @@ class TestGPIORoutes:
         assert gpio_manager._pin_modes[18] == OUT
         assert gpio_manager.output_pin_states[18] == HIGH
 
-    def test_configure_pin_invalid_pin(self, client, mock_hardware):
+    def test_configure_pin_invalid_pin(self, client: FlaskClient, mock_hardware: Mock):
         """Test configuring an invalid pin"""
         response = client.post('/gpio/api/configure', 
                              json={'pin': 999, 'mode': IN})
@@ -102,7 +104,7 @@ class TestGPIORoutes:
         assert 'error' in data
         assert 'Invalid pin number' in data['error']
 
-    def test_configure_pin_invalid_mode(self, client):
+    def test_configure_pin_invalid_mode(self, client: FlaskClient):
         """Test configuring pin with invalid mode"""
         response = client.post('/gpio/api/configure', 
                              json={'pin': 18, 'mode': 'INVALID'})
@@ -112,7 +114,7 @@ class TestGPIORoutes:
         assert 'error' in data
         assert 'Invalid mode' in data['error']
 
-    def test_get_pins(self, client, mock_hardware):
+    def test_get_pins(self, client: FlaskClient, mock_hardware: Mock):
         """Test getting pin states"""
         # Configure some pins first
         gpio_manager._pin_modes[18] = IN
@@ -143,7 +145,7 @@ class TestGPIORoutes:
         assert pins[24]['mode'] == UNDEFINED
         assert pins[24]['state'] == UNDEFINED
 
-    def test_set_pin_state(self, client, mock_hardware):
+    def test_set_pin_state(self, client: FlaskClient, mock_hardware: Mock):
         """Test setting pin state"""
         # Configure pin as output first
         gpio_manager._pin_modes[18] = OUT
@@ -161,7 +163,7 @@ class TestGPIORoutes:
         mock_hardware.set_output_state.assert_called_once_with(18, HIGH)
         assert gpio_manager.output_pin_states[18] == HIGH
 
-    def test_set_pin_state_input_pin(self, client):
+    def test_set_pin_state_input_pin(self, client: FlaskClient):
         """Test setting state of input pin fails"""
         # Configure pin as input
         gpio_manager._pin_modes[18] = IN
@@ -174,7 +176,7 @@ class TestGPIORoutes:
         assert 'error' in data
         assert 'configured as input' in data['error']
 
-    def test_set_pin_state_unconfigured(self, client):
+    def test_set_pin_state_unconfigured(self, client: FlaskClient):
         """Test setting state of unconfigured pin fails"""
         response = client.post('/gpio/api/state',
                              json={'pin': 18, 'state': HIGH})
@@ -184,7 +186,7 @@ class TestGPIORoutes:
         assert 'error' in data
         assert 'not configured' in data['error']
 
-    def test_cleanup(self, client, mock_hardware):
+    def test_cleanup(self, client: FlaskClient, mock_hardware: Mock):
         """Test GPIO cleanup"""
         # Set up some state
         gpio_manager._pin_modes[18] = OUT
@@ -204,7 +206,7 @@ class TestGPIORoutes:
 class TestWebSocket:
     
     @pytest.mark.asyncio
-    async def test_websocket_connection(self, app, mock_hardware):
+    async def test_websocket_connection(self, app: Flask, mock_hardware: Mock):
         """Test WebSocket connection and initial state"""
         async with app.test_client().websocket('/gpio/ws/gpio-updates') as ws:
             # Configure a pin
@@ -223,7 +225,7 @@ class TestWebSocket:
             assert ws in active_connections
 
     @pytest.mark.asyncio
-    async def test_websocket_pin_updates(self, app, mock_hardware):
+    async def test_websocket_pin_updates(self, app: Flask, mock_hardware: Mock):
         """Test WebSocket receives pin updates"""
         async with app.test_client().websocket('/gpio/ws/gpio-updates') as ws:
             # Configure pin with callback
@@ -242,7 +244,7 @@ class TestWebSocket:
             assert data['data']['state'] == HIGH
 
     @pytest.mark.asyncio
-    async def test_websocket_cleanup(self, app, mock_hardware):
+    async def test_websocket_cleanup(self, app: Flask, mock_hardware: Mock):
         """Test WebSocket cleanup on disconnect"""
         async with app.test_client().websocket('/gpio/ws/gpio-updates') as ws:
             # Configure pin

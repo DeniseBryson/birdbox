@@ -5,6 +5,7 @@ This module provides the API endpoints for GPIO control.
 """
 import asyncio
 import json
+from typing import Any
 from flask import Blueprint, jsonify, request, render_template 
 from flask_sock import Sock
 from .manager import GPIOManager
@@ -25,7 +26,7 @@ gpio_manager = GPIOManager()
 gpio_lock = threading.Lock()
 
 # Track active WebSocket connections
-active_connections = set()
+active_connections: set[Sock] = set()
 
 def pin_state_changed(pin: int, state: int):
     """Callback for GPIO pin state changes."""
@@ -39,7 +40,7 @@ def pin_state_changed(pin: int, state: int):
     logger.info(f"Pin state changed: {pin} to {state}")
     
     # Broadcast to all active connections
-    dead_connections = set()
+    dead_connections: set[Sock] = set()
     for ws in active_connections:
         try:
             ws.send(message)
@@ -116,7 +117,7 @@ def configure_gpio():
             return jsonify({'error': str(e)}), 500
 
 @sock.route('/ws/gpio-updates')
-async def gpio_updates(ws):
+async def gpio_updates(ws: Sock):
     """
     WebSocket endpoint for real-time GPIO updates.
     
@@ -166,8 +167,8 @@ async def gpio_updates(ws):
         if len(active_connections) == 0:
             # If this was the last connection, remove all callbacks
             with gpio_lock:
-                for pin in gpio_manager.get_available_pins():
-                    mode = gpio_manager._pin_modes.get(pin)
+                configured_pins = gpio_manager.get_configured_pins()
+                for pin, mode in configured_pins.items():
                     if mode in [IN, OUT]:
                         logger.debug(f"Removing callback for pin {pin}")
                         gpio_manager.configure_pin(pin, mode, callback=None)
@@ -192,7 +193,7 @@ def get_gpio_pins():
         try:
             available_pins = gpio_manager.get_available_pins()
             configured_pins = gpio_manager.get_configured_pins()
-            pins = []
+            pins: list[dict[str, Any]] = []
             
             for pin in available_pins:
                 pin_data = {
@@ -239,7 +240,7 @@ def set_gpio_state():
                 return jsonify({'error': 'Missing required parameters'}), 400
                 
             pin = int(data['pin'])
-            state = int(data['state'])
+            state = data['state']
             
             if pin not in gpio_manager.get_available_pins():
                 return jsonify({'error': 'Invalid pin number'}), 400

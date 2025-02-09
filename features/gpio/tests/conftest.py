@@ -1,12 +1,13 @@
 """
 Test configuration and fixtures for GPIO tests
 """
+from flask.testing import FlaskClient
 import pytest
 from flask import Flask
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from features.gpio.routes import gpio_bp
-import RPi.GPIO as RPI_GPIO
 from features.gpio.manager import GPIOManager
+import RPi.GPIO as RPI_GPIO
 
 @pytest.fixture(scope='session', autouse=True)
 def setup_gpio_session():
@@ -26,7 +27,7 @@ def setup_gpio_session():
             pass
 
 @pytest.fixture
-def gpio_manager(setup_gpio_session):
+def gpio_manager():
     """Create a fresh GPIO manager for each test."""
     manager = GPIOManager()
     yield manager
@@ -48,7 +49,7 @@ def mock_gpio():
         yield mock
 
 @pytest.fixture
-def app(gpio_manager):
+def app(gpio_manager: GPIOManager) -> Flask:
     """Create test Flask application."""
     app = Flask(__name__,
                 template_folder='templates',    # Use root templates directory
@@ -59,11 +60,11 @@ def app(gpio_manager):
     return app
 
 @pytest.fixture
-def client(app):
+def client(app: Flask) -> FlaskClient:
     """Create test client."""
     return app.test_client()
 
 @pytest.fixture
-def runner(app):
+def runner(app: Flask):
     """Create test CLI runner."""
     return app.test_cli_runner() 

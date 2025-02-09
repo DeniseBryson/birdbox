@@ -32,7 +32,8 @@ PUD_DOWN: Final[PullUpDown] = 21
 BOTH: Final = 33
 BCM: Final = 11
 
-EventCallback: TypeAlias = Callable[[int, int], object]
+# Update callback type to include both pin and state
+EventCallback: TypeAlias = Callable[[int, PinState], None]
 
 class GPIOHardware:
     """
@@ -57,15 +58,15 @@ class GPIOHardware:
         self.gpio = RPI_GPIO
         self.gpio.setmode(BCM)
         logger.info("GPIO Manager initialized in BCM mode")
-        self._valid_pins = None  # Initialize as None, will be populated on first get_valid_pins call
+        self._valid_pins: list[int] | None = None  # Initialize as None, will be populated on first get_valid_pins call
         self.RPI_INFO = RPI_GPIO.RPI_INFO
 
-    def get_valid_pins(self):   
+    def get_valid_pins(self) -> list[int]:   
         """Get valid GPIO pins by checking gpio_function for all possible pins."""
         if self._valid_pins is not None:
             return self._valid_pins
         
-        valid_pins = []
+        valid_pins: list[int] = []
         # Check all possible BCM pins (0-27 should cover all Pi models)
         for pin in range(28):
             try:
@@ -89,7 +90,7 @@ class GPIOHardware:
                        pull_up_down:PullUpDown=PUD_OFF, 
                        edge_detection:bool=False,
                        bouncetime:int=200,
-                       callback:EventCallback=None
+                       callback:EventCallback|None=None
                        ):
         """
         Set up a pin as input with optional edge detection.
@@ -116,9 +117,10 @@ class GPIOHardware:
         if edge_detection:
             try:
                 # Create a wrapper that includes the pin state
-                def wrapped_callback(pin):
+                def wrapped_callback(pin: int):
                     state = self.get_pin_state(pin)
-                    callback(pin, state)
+                    if callback!=None:
+                        callback(pin, state)
 
                 self.gpio.add_event_detect(
                     pin, 
@@ -132,7 +134,7 @@ class GPIOHardware:
                 raise RuntimeError(f"Edge detection setup failed for pin {pin}. "
                                  f"Ensure valid pin number and proper permissions.")
 
-    def setup_output_pin(self, pin: int, initial_state: PinState|None = None):
+    def setup_output_pin(self, pin: int, initial_state: PinState = UNDEFINED):
         """
         Set up a pin as output with optional initial state.
 
@@ -140,9 +142,9 @@ class GPIOHardware:
             pin: The GPIO pin number (BCM numbering)
             initial_state: Initial state for the pin (HIGH or LOW), None for no initial state
         """
-        if initial_state is not None and initial_state not in [HIGH, LOW]:
+        if initial_state is not UNDEFINED and initial_state not in [HIGH, LOW]:
             raise ValueError("Invalid initial state, must be HIGH or LOW")
-
+                
         self.gpio.setup(pin, OUT, pull_up_down=PUD_OFF, initial=initial_state)
         logger.info(f"Setup pin {pin} as output with initial state {initial_state}")
     
@@ -153,7 +155,9 @@ class GPIOHardware:
         if pin not in self.get_valid_pins():
             raise ValueError("Invalid pin number")
         
-        return self.gpio.input(pin)
+        state = self.gpio.input(pin)
+
+        return HIGH if state else LOW
 
     def set_output_state(self, pin: int, state: PinState):
         """
@@ -169,7 +173,7 @@ class GPIOHardware:
         if state not in [HIGH, LOW]:
             raise ValueError("Invalid initial state, must be HIGH or LOW")
 
-        self.gpio.output(pin, state)
+        self.gpio.output(pin, bool(state))
         logger.info(f"Set pin {pin} state to {state}")
 
     def cleanup(self):

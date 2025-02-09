@@ -1,12 +1,11 @@
+# pyright: reportPrivateUsage=false
 """
 Test suite for GPIO Manager
 """
 import pytest
 from unittest.mock import Mock, patch
-import logging
 from features.gpio.hardware import (
-    HIGH, LOW, IN, OUT, PUD_OFF, UNDEFINED,
-    GPIOHardware as HW
+    HIGH, LOW, IN, OUT, PUD_OFF, UNDEFINED
 )
 from features.gpio.manager import GPIOManager
 
@@ -31,7 +30,7 @@ def mock_hardware():
         yield mock
 
 @pytest.fixture
-def gpio_manager(mock_hardware):
+def gpio_manager(mock_hardware: Mock):
     """Creates a GPIOManager instance with mocked hardware"""
     manager = GPIOManager()
     return manager
@@ -43,21 +42,21 @@ def mock_logger():
 
 class TestGPIOManager:
     
-    def test_singleton_pattern(self, gpio_manager):
+    def test_singleton_pattern(self, gpio_manager: GPIOManager):
         """Test that GPIOManager implements singleton pattern correctly"""
         manager1 = GPIOManager()
         manager2 = GPIOManager()
         assert manager1 is manager2
         assert manager1 is gpio_manager
     
-    def test_get_available_pins(self, gpio_manager, mock_hardware):
+    def test_get_available_pins(self, gpio_manager: GPIOManager, mock_hardware: Mock):
         """Test getting available pins delegates to hardware"""
         mock_hardware.get_valid_pins.return_value = [2, 3, 4]
         pins = gpio_manager.get_available_pins()
         assert pins == [2, 3, 4]
         mock_hardware.get_valid_pins.assert_called_once()
 
-    def test_configure_input_pin(self, gpio_manager, mock_hardware):
+    def test_configure_input_pin(self, gpio_manager: GPIOManager, mock_hardware: Mock):
         """Test configuring a pin as input"""
         pin = 18
         callback = Mock()
@@ -76,7 +75,7 @@ class TestGPIOManager:
         assert pin not in gpio_manager.output_pin_states
         assert pin not in gpio_manager._output_pin_callbacks
 
-    def test_configure_output_pin(self, gpio_manager, mock_hardware):
+    def test_configure_output_pin(self, gpio_manager: GPIOManager, mock_hardware: Mock):
         """Test configuring a pin as output"""
         pin = 18
         callback = Mock()
@@ -97,7 +96,7 @@ class TestGPIOManager:
         # Verify callback was triggered with initial state
         callback.assert_called_once_with(pin)
 
-    def test_get_pin_state_input_pin(self, gpio_manager, mock_hardware):
+    def test_get_pin_state_input_pin(self, gpio_manager: GPIOManager, mock_hardware: Mock):
         """Test getting state of an input pin"""
         pin = 18
         gpio_manager._pin_modes[pin] = IN
@@ -107,7 +106,7 @@ class TestGPIOManager:
         assert state == HIGH
         mock_hardware.get_pin_state.assert_called_once_with(pin)
 
-    def test_get_pin_state_output_pin(self, gpio_manager, mock_hardware):
+    def test_get_pin_state_output_pin(self, gpio_manager: GPIOManager, mock_hardware: Mock):
         """Test getting state of an output pin"""
         pin = 18
         gpio_manager._pin_modes[pin] = OUT
@@ -117,7 +116,7 @@ class TestGPIOManager:
         assert state == LOW
         mock_hardware.get_pin_state.assert_not_called()
 
-    def test_get_pin_state_unconfigured(self, gpio_manager, mock_hardware):
+    def test_get_pin_state_unconfigured(self, gpio_manager: GPIOManager, mock_hardware: Mock):
         """Test getting state of an unconfigured pin"""
         pin = 18
         mock_hardware.get_valid_pins.return_value = [pin]
@@ -125,7 +124,7 @@ class TestGPIOManager:
         state = gpio_manager.get_pin_state(pin)
         assert state == UNDEFINED
 
-    def test_get_pin_state_invalid_pin(self, gpio_manager, mock_hardware):
+    def test_get_pin_state_invalid_pin(self, gpio_manager: GPIOManager, mock_hardware: Mock):
         """Test getting state of an invalid pin"""
         pin = 999
         mock_hardware.get_valid_pins.return_value = [18]
@@ -133,12 +132,12 @@ class TestGPIOManager:
         state = gpio_manager.get_pin_state(pin)
         assert state == UNDEFINED
 
-    def test_set_pin_state(self, gpio_manager, mock_hardware):
+    def test_set_pin_state(self, gpio_manager: GPIOManager, mock_hardware: Mock):
         """Test setting pin state"""
         pin = 18
         gpio_manager._pin_modes[pin] = OUT
         callback = Mock()
-        gpio_manager._output_pin_callbacks[pin] = callback
+        gpio_manager._output_pin_callbacks[pin] = callback 
         
         gpio_manager.set_pin_state(pin, HIGH)
         
@@ -151,7 +150,7 @@ class TestGPIOManager:
         # Verify callback triggered
         callback.assert_called_once_with(pin)
 
-    def test_set_pin_state_input_pin(self, gpio_manager):
+    def test_set_pin_state_input_pin(self, gpio_manager: GPIOManager):
         """Test setting state of an input pin fails"""
         pin = 18
         gpio_manager._pin_modes[pin] = IN
@@ -159,14 +158,14 @@ class TestGPIOManager:
         with pytest.raises(ValueError, match="not configured as output"):
             gpio_manager.set_pin_state(pin, HIGH)
 
-    def test_set_pin_state_unconfigured(self, gpio_manager):
+    def test_set_pin_state_unconfigured(self, gpio_manager: GPIOManager):
         """Test setting state of an unconfigured pin fails"""
         pin = 18
         
         with pytest.raises(RuntimeError, match="not configured"):
             gpio_manager.set_pin_state(pin, HIGH)
 
-    def test_cleanup(self, gpio_manager, mock_hardware):
+    def test_cleanup(self, gpio_manager: GPIOManager, mock_hardware: Mock):
         """Test cleanup"""
         # Setup some state
         pin = 18

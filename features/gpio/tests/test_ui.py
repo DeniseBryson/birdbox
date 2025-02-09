@@ -3,9 +3,7 @@ UI Tests for GPIO Functionality
 """
 import pytest
 import json
-from flask import url_for
 from flask.testing import FlaskClient
-from features.gpio.hardware import GPIO
 from features.gpio.manager import GPIOManager
 
 @pytest.fixture(autouse=True)

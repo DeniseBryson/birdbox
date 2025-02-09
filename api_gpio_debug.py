@@ -1,7 +1,6 @@
 import requests
 import time
 import json
-import RPi.GPIO as RPI_GPIO
 
 BASE_URL = "http://localhost:8080"
 

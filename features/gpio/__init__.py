@@ -7,9 +7,8 @@ It includes hardware abstraction, API endpoints, and real-time updates via WebSo
 
 from .manager import GPIOManager
 from .routes import gpio_bp
-from .websocket import sock
 
-__all__ = ['GPIOManager', 'gpio_bp', 'sock']
+__all__ = ['GPIOManager', 'gpio_bp']
 
 # Version info
 __version__ = '1.0.0' 

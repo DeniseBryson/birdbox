@@ -2,6 +2,8 @@ import RPi.GPIO as RPI_GPIO
 from features.gpio import GPIOManager
 import time
 
+from features.gpio.hardware import OUT
+
 def print_separator():
     print("\n" + "="*50 + "\n")
 
@@ -44,7 +46,7 @@ except Exception as e:
     print(f"Error getting state: {e}")
 
 print("\nConfiguring pin...")
-state = gpio.configure_pin(PIN, "OUT")
+state = gpio.configure_pin(PIN, OUT)
 print(f"After configure state: {state}")
 print(f"Direct GPIO function check: {RPI_GPIO.gpio_function(PIN)}")
 
@@ -69,7 +71,7 @@ gpio.cleanup()
 print_separator()
 print("=== Rapid Switching Test ===")
 gpio = GPIOManager()
-gpio.configure_pin(PIN, "OUT")
+gpio.configure_pin(PIN, OUT)
 
 print("Rapid switching 10 times...")
 for i in range(10):
