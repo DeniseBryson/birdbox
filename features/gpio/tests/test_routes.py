@@ -6,8 +6,11 @@ import json
 from unittest.mock import Mock, patch
 from flask import Flask
 from flask_sock import Sock
-from ..routes import gpio_bp, gpio_manager, HW, active_connections
-from ..hardware import HIGH, LOW, IN, OUT, UNDEFINED
+from ..routes import gpio_bp, gpio_manager, active_connections
+from ..hardware import (
+    GPIOHardware, HIGH, LOW, IN, OUT, UNDEFINED,
+    PUD_OFF, PUD_UP, PUD_DOWN, BOTH, BCM
+)
 
 @pytest.fixture
 def app():
@@ -41,6 +44,11 @@ def mock_hardware():
         mock.IN = IN
         mock.OUT = OUT
         mock.UNDEFINED = UNDEFINED
+        mock.PUD_OFF = PUD_OFF
+        mock.PUD_UP = PUD_UP
+        mock.PUD_DOWN = PUD_DOWN
+        mock.BOTH = BOTH
+        mock.BCM = BCM
         # Set up valid pins
         mock.get_valid_pins.return_value = [18, 23, 24]
         yield mock

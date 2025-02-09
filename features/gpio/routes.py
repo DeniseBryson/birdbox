@@ -7,7 +7,8 @@ import asyncio
 import json
 from flask import Blueprint, jsonify, request, render_template 
 from flask_sock import Sock
-from .manager import GPIOManager, HW
+from .manager import GPIOManager
+from .hardware import HIGH, LOW, IN, OUT, UNDEFINED
 import threading
 import logging
 from werkzeug.exceptions import BadRequest
@@ -26,7 +27,7 @@ gpio_lock = threading.Lock()
 # Track active WebSocket connections
 active_connections = set()
 
-def pin_state_changed(pin: int, state: HW.PinState):
+def pin_state_changed(pin: int, state: int):
     """Callback for GPIO pin state changes."""
     message = json.dumps({
         'type': 'gpio_update',
@@ -89,7 +90,7 @@ def configure_gpio():
                 logger.error(f"Invalid pin number: {pin}")
                 return jsonify({'error': 'Invalid pin number'}), 400
                 
-            if mode not in [HW.IN, HW.OUT]:
+            if mode not in [IN, OUT]:
                 logger.error(f"Invalid mode: {mode}")
                 return jsonify({'error': 'Invalid mode'}), 400
                 
@@ -167,7 +168,7 @@ async def gpio_updates(ws):
             with gpio_lock:
                 for pin in gpio_manager.get_available_pins():
                     mode = gpio_manager._pin_modes.get(pin)
-                    if mode in [HW.IN, HW.OUT]:
+                    if mode in [IN, OUT]:
                         logger.debug(f"Removing callback for pin {pin}")
                         gpio_manager.configure_pin(pin, mode, callback=None)
                     else:
@@ -197,8 +198,8 @@ def get_gpio_pins():
                 pin_data = {
                     'number': pin,
                     'configured': pin in configured_pins,
-                    'mode': configured_pins.get(pin, HW.UNDEFINED),
-                    'state': HW.UNDEFINED  # Default state for unconfigured pins
+                    'mode': configured_pins.get(pin, UNDEFINED),
+                    'state': UNDEFINED  # Default state for unconfigured pins
                 }
                 
                 # Only try to get state if pin is configured
@@ -243,7 +244,7 @@ def set_gpio_state():
             if pin not in gpio_manager.get_available_pins():
                 return jsonify({'error': 'Invalid pin number'}), 400
                 
-            if state not in [HW.LOW, HW.HIGH]:
+            if state not in [LOW, HIGH]:
                 return jsonify({'error': 'Invalid state value'}), 400
             
             # Check if pin is configured as output before setting state
@@ -251,7 +252,7 @@ def set_gpio_state():
             if pin not in configured_pins:
                 return jsonify({'error': f'Pin {pin} is not configured'}), 400
             
-            if configured_pins[pin] != HW.OUT:
+            if configured_pins[pin] != OUT:
                 return jsonify({'error': f'Pin {pin} is configured as input and cannot have its state set'}), 400
                 
             gpio_manager.set_pin_state(pin, state)
