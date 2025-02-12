@@ -14,7 +14,9 @@ def setup_gpio_session():
     """Setup GPIO mode for the test session."""
     try:
         # Clean up any existing configuration
+        RPI_GPIO.setwarnings(False)
         RPI_GPIO.cleanup()
+        RPI_GPIO.setwarnings(True)
         # Set mode to BCM for the entire test session
         RPI_GPIO.setmode(RPI_GPIO.BCM)
         RPI_GPIO.setwarnings(False)
