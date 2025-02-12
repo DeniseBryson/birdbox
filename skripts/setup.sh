@@ -44,7 +44,9 @@ pip install --upgrade pip wheel
 echo "Installing additional Python packages..."
 pip install flask-sock  # No apt package available for this
 pip install gunicorn   # Using pip for latest version
-pip install RPi.GPIO   # Ensure GPIO is available in virtual environment
+pip remove RPi.GPIO   # Ensure GPIO is available in virtual environment
+pip install rpi-lgpio
+pip install pytest pytest-asyncio
 
 # Set up logging directory
 echo "Setting up logging..."
