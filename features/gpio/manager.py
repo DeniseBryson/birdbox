@@ -50,13 +50,13 @@ class GPIOManager:
                 self.is_raspberry_pi = model.startswith('Raspberry Pi')
         
         self._pin_modes: Dict[int, PinMode|None] = {}  # Stores pin modes (IN/OUT)
-        self.output_pin_states: Dict[int, PinState] = {}  # Stores pin states for output pins
+        self._output_pin_states: Dict[int, PinState] = {}  # Stores pin states for output pins
         self._output_pin_callbacks: Dict[int, EventCallback] = {}  # Stores callbacks for output pins
         
         # Initialize all pins as unconfigured
         for pin in self.valid_pins:
             self._pin_modes[pin] = None
-            self.output_pin_states[pin] = LOW
+            self._output_pin_states[pin] = LOW
         
         # Log hardware info
         if self.is_raspberry_pi and hasattr(HW, "RPI_INFO"):
@@ -70,15 +70,6 @@ class GPIOManager:
     def valid_pins(self) -> List[int]:
         """Get list of valid GPIO pins."""
         return HW.get_valid_pins()
-
-    def get_available_pins(self) -> List[int]:
-        """
-        Get list of available GPIO pins.
-        
-        Returns:
-            List[int]: List of valid GPIO pin numbers
-        """
-        return self.valid_pins
 
     def configure_pin(self, pin: int, mode: PinMode, callback: Optional[EventCallback] = None) -> None:
         """
@@ -105,14 +96,14 @@ class GPIOManager:
                 raise RuntimeError(f"Hardware configuration failed: {str(e)}")
         else:
             try:
-                init_state = HIGH 
-                HW.setup_output_pin(pin, initial_state=init_state)
+                init_state= HIGH 
+                HW.setup_output_pin(pin, initial_state=init_state) 
                 self._pin_modes[pin] = mode
                 logger.info(f"Successfully configured pin {pin} as {'IN' if mode == IN else 'OUT'}")
                 if callback:
                     self._output_pin_callbacks[pin] = callback
                     logger.info(f"Successfully registered callback for pin {pin}")
-                self.output_pin_states[pin] = HIGH
+                self._output_pin_states[pin] = HIGH
                 logger.info(f"Setting initial state of configured pin {pin} to HIGH")
                 if callback:
                     callback(pin, init_state)  # Trigger callback to initialize state
@@ -142,11 +133,11 @@ class GPIOManager:
             ValueError: If pin or state is invalid, or if pin is not configured as output
             RuntimeError: If pin is not configured
         """
-        logger.info(f"Setting pin {pin} state to {state}")
+        logger.info(f"Setting pin {pin} state to {'HIGH' if state == HIGH else 'LOW'}")
         
         # Check if pin is configured
         mode = self._pin_modes.get(pin, None)
-        if not mode:
+        if mode is None:
             logger.error(f"Pin {pin} is not configured")
             raise RuntimeError(f"Pin {pin} is not configured")
         
@@ -162,12 +153,12 @@ class GPIOManager:
         # Set the state
         try:
             HW.set_output_state(pin, state)
-            self.output_pin_states[pin] = state  # Track output pin state
+            self._output_pin_states[pin] = state  # Track output pin state
             logger.info(f"Set pin {pin} to state {state}")
             callback = self._output_pin_callbacks.get(pin, None)
             if callback:
                 callback(pin, state)  # Trigger callback with updated state
-                logger.info(f"Triggered callback for output pin {pin}")
+                logger.info(f"Triggered callback for output pin {pin} with state {state}")
         except Exception as e:
             logger.error(f"Failed to set pin {pin} state: {str(e)}")
             raise RuntimeError(f"Failed to set pin state: {str(e)}")
@@ -194,16 +185,16 @@ class GPIOManager:
             logger.error(f"Pin {pin} is not configured")
             return UNDEFINED
         
-        if mode == OUT:
+        if mode is OUT:
             # For output pins, we maintain our own state tracking
-            state = self.output_pin_states.get(pin, None)
+            state = self._output_pin_states.get(pin, None)
             if state is None:
                 logger.error(f"Pin {pin} is not configured as output, but was found in _pin_modes")
                 return UNDEFINED
             logger.debug(f"Output pin {pin} state from cache: {state}")
             return state
         
-        if mode == IN:
+        if mode is IN:
             # For input pins, we read directly
             try:
                 state = HW.get_pin_state(pin)
@@ -213,6 +204,7 @@ class GPIOManager:
                 logger.debug(f"Failed to read input pin {pin}: {str(e)}")
                 return UNDEFINED
         return UNDEFINED
+   
     def cleanup(self) -> None:
         """
         Clean up GPIO resources.
@@ -222,7 +214,7 @@ class GPIOManager:
         """
         try:
             HW.cleanup()
-            self.output_pin_states.clear()
+            self._output_pin_states.clear()
             self._pin_modes.clear()
             self._output_pin_callbacks.clear()
         except Exception as e:

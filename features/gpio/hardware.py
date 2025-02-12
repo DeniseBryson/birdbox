@@ -68,7 +68,7 @@ class GPIOHardware:
         
         valid_pins: list[int] = []
         # Check all possible BCM pins (0-27 should cover all Pi models)
-        for pin in range(28):
+        for pin in range(100):
             try:
                 mode = self.gpio.gpio_function(pin)
                 # If we can get the function, it's a valid GPIO pin
@@ -83,6 +83,7 @@ class GPIOHardware:
             raise RuntimeError("No valid pins found")
         
         self._valid_pins = sorted(valid_pins)
+        logger.info(f"Valid pins found: {self._valid_pins}")
         return self._valid_pins
 
     def setup_input_pin(self,
@@ -183,6 +184,7 @@ class GPIOHardware:
         if self.gpio:
             self.gpio.cleanup()
             logger.info("GPIO resources cleaned up")
+            self._initialized = False
             self._valid_pins = None  # Reset valid pins on cleanup
         else:
             logger.info("GPIO library not found, skipping cleanup")

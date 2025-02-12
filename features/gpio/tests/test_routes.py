@@ -32,7 +32,7 @@ def reset_state():
     """Reset GPIO manager and active connections between tests"""
     active_connections.clear()
     gpio_manager._pin_modes.clear()
-    gpio_manager.output_pin_states.clear()
+    gpio_manager._output_pin_states.clear()
     gpio_manager._output_pin_callbacks.clear()
     yield
 
@@ -53,6 +53,8 @@ def mock_hardware():
         mock.BCM = BCM
         # Set up valid pins
         mock.get_valid_pins.return_value = [18, 23, 24]
+        # Make get_pin_state return actual values instead of mocks
+        mock.get_pin_state.return_value = LOW
         yield mock
 
 class TestGPIORoutes:
@@ -62,6 +64,14 @@ class TestGPIORoutes:
         response = client.get('/gpio/')
         assert response.status_code == 200
         assert b'html' in response.data
+        assert b'GPIO Control' in response.data
+        assert b'GPIO Pins' in response.data
+        assert b'GPIO State' in response.data
+        assert b'GPIO Mode' in response.data
+        assert b'GPIO Cleanup' in response.data
+        assert b'WebSocket' in response.data
+        assert b'GPIO Updates' in response.data
+        
 
     def test_configure_pin_input(self, client: FlaskClient, mock_hardware: Mock):
         """Test configuring a pin as input"""
@@ -92,7 +102,7 @@ class TestGPIORoutes:
         # Verify hardware calls
         mock_hardware.setup_output_pin.assert_called_once()
         assert gpio_manager._pin_modes[18] == OUT
-        assert gpio_manager.output_pin_states[18] == HIGH
+        assert gpio_manager._output_pin_states[18] == HIGH
 
     def test_configure_pin_invalid_pin(self, client: FlaskClient, mock_hardware: Mock):
         """Test configuring an invalid pin"""
@@ -119,7 +129,7 @@ class TestGPIORoutes:
         # Configure some pins first
         gpio_manager._pin_modes[18] = IN
         gpio_manager._pin_modes[23] = OUT
-        gpio_manager.output_pin_states[23] = HIGH
+        gpio_manager._output_pin_states[23] = HIGH
         
         mock_hardware.get_pin_state.return_value = LOW
         
@@ -161,7 +171,7 @@ class TestGPIORoutes:
         
         # Verify hardware calls
         mock_hardware.set_output_state.assert_called_once_with(18, HIGH)
-        assert gpio_manager.output_pin_states[18] == HIGH
+        assert gpio_manager._output_pin_states[18] == HIGH
 
     def test_set_pin_state_input_pin(self, client: FlaskClient):
         """Test setting state of input pin fails"""
@@ -190,7 +200,7 @@ class TestGPIORoutes:
         """Test GPIO cleanup"""
         # Set up some state
         gpio_manager._pin_modes[18] = OUT
-        gpio_manager.output_pin_states[18] = HIGH
+        gpio_manager._output_pin_states[18] = HIGH
         
         response = client.post('/gpio/api/cleanup')
         
@@ -201,17 +211,18 @@ class TestGPIORoutes:
         # Verify cleanup
         mock_hardware.cleanup.assert_called_once()
         assert not gpio_manager._pin_modes
-        assert not gpio_manager.output_pin_states
+        assert not gpio_manager._output_pin_states
 
 class TestWebSocket:
     
     @pytest.mark.asyncio
     async def test_websocket_connection(self, app: Flask, mock_hardware: Mock):
         """Test WebSocket connection and initial state"""
-        async with app.test_client().websocket('/gpio/ws/gpio-updates') as ws:
+        test_client = app.test_client()
+        async with test_client.websocket('/gpio/ws/gpio-updates') as ws:  # type: ignore
             # Configure a pin
             gpio_manager._pin_modes[18] = OUT
-            gpio_manager.output_pin_states[18] = HIGH
+            gpio_manager._output_pin_states[18] = HIGH
             
             # Should receive initial state
             msg = await ws.receive()
@@ -227,7 +238,8 @@ class TestWebSocket:
     @pytest.mark.asyncio
     async def test_websocket_pin_updates(self, app: Flask, mock_hardware: Mock):
         """Test WebSocket receives pin updates"""
-        async with app.test_client().websocket('/gpio/ws/gpio-updates') as ws:
+        test_client = app.test_client()
+        async with test_client.websocket('/gpio/ws/gpio-updates') as ws:  # type: ignore
             # Configure pin with callback
             gpio_manager._pin_modes[18] = IN
             
@@ -246,7 +258,8 @@ class TestWebSocket:
     @pytest.mark.asyncio
     async def test_websocket_cleanup(self, app: Flask, mock_hardware: Mock):
         """Test WebSocket cleanup on disconnect"""
-        async with app.test_client().websocket('/gpio/ws/gpio-updates') as ws:
+        test_client = app.test_client()
+        async with test_client.websocket('/gpio/ws/gpio-updates') as ws:  # type: ignore
             # Configure pin
             gpio_manager._pin_modes[18] = IN
             
