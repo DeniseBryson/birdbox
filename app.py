@@ -5,9 +5,10 @@ from flask import Flask, render_template, jsonify
 from routes.main_routes import main_bp
 from routes.api_routes import api_bp
 from routes.system_routes import system_bp
-from features.gpio.routes import gpio_bp
+from features.gpio.routes import gpio_bp, sock as gpio_sock
 from features.camera.routes import camera_bp
-from features.camera.ws_routes import ws_bp, sock
+from features.camera.ws_routes import ws_bp, sock as camera_sock
+
 import os
 import logging
 from config.logging import setup_logging
@@ -46,7 +47,8 @@ def create_app():
     logger.info("Initializing BirdsOS application")
     
     # Initialize WebSocket
-    sock.init_app(app)
+    gpio_sock.init_app(app,)
+    #camera_sock.init_app(app)
     
     # Register blueprints
     app.register_blueprint(main_bp)
@@ -60,7 +62,7 @@ def create_app():
     
     # Register error handlers
     @app.errorhandler(404)
-    def page_not_found(e):
+    def page_not_found(e: Exception):
         logger.warning(f"404 error: {str(e)}")
         return render_template('404.html'), 404
     

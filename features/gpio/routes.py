@@ -3,12 +3,14 @@ GPIO API Routes
 
 This module provides the API endpoints for GPIO control.
 """
-import asyncio
 import json
+import time
 from typing import Any
 from flask import Blueprint, jsonify, request, render_template 
 from flask_sock import Sock
-from .manager import GPIOManager
+
+from features.gpio.constants import PinMode
+from .manager import gpio_manager
 from .hardware import HIGH, LOW, IN, OUT, UNDEFINED
 import threading
 import logging
@@ -21,8 +23,7 @@ logger = logging.getLogger(__name__)
 gpio_bp = Blueprint('gpio', __name__,
                    url_prefix='/gpio',
                    template_folder='../../templates')
-sock = Sock()
-gpio_manager = GPIOManager()
+sock: Sock = Sock()
 gpio_lock = threading.Lock()
 
 # Track active WebSocket connections
@@ -60,7 +61,6 @@ def control():
     """
     return render_template('gpio_control.html')
 
-
 @gpio_bp.route('/api/configure', methods=['POST'])
 def configure_gpio():
     """
@@ -87,14 +87,16 @@ def configure_gpio():
             pin = int(data['pin'])
             mode = data['mode']
             
-            if pin not in gpio_manager.get_available_pins():
+            if pin not in gpio_manager.get_valid_pins():
                 logger.error(f"Invalid pin number: {pin}")
                 return jsonify({'error': 'Invalid pin number'}), 400
                 
-            if mode not in [IN, OUT]:
+            if mode not in [IN, OUT, 'IN', 'OUT']:
                 logger.error(f"Invalid mode: {mode}")
                 return jsonify({'error': 'Invalid mode'}), 400
-                
+            
+            if mode in ['IN', 'OUT']:
+                mode = IN if mode == 'IN' else OUT
 
             gpio_manager.configure_pin(
                 pin, 
@@ -116,8 +118,32 @@ def configure_gpio():
             logger.error(f"Failed to configure GPIO pin: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+def get_gpio_states() -> dict[str, Any]:
+    """
+    Get the current state of all GPIO pins.
+    """
+    pins: list[int] = gpio_manager.get_valid_pins()
+    configured_pins: dict[int, PinMode] = gpio_manager.get_configured_pins()
+    states: list[dict[str, Any]] = [
+        {
+            'number': pin,
+            'mode': configured_pins.get(pin, UNDEFINED),
+            'configured': pin in configured_pins,
+            'state': gpio_manager.get_pin_state(pin) 
+        }
+        for pin in pins 
+    ]
+    
+    data: dict[str, Any] = {
+        'type': 'gpio_update',
+        'data': {
+            'pins': states,
+        }
+    }
+    return data
+
 @sock.route('/ws/gpio-updates')
-async def gpio_updates(ws: Sock):
+def gpio_updates(ws: Sock):
     """
     WebSocket endpoint for real-time GPIO updates.
     
@@ -131,28 +157,15 @@ async def gpio_updates(ws: Sock):
         
         # Send complete initial state
         with gpio_lock:
-            pins = gpio_manager.get_available_pins()
-            configured_pins = gpio_manager.get_configured_pins()
-            states = {
-                pin: gpio_manager.get_pin_state(pin) 
-                for pin in pins 
-                if pin in configured_pins
-            }
-
-            logger.info(f"Sending initial state to client: {states}")
-            ws.send(json.dumps({
-                'type': 'gpio_update',
-                'data': {
-                    'pins': pins,
-                    'states': states,
-                }
-            }))
+            data = get_gpio_states()
+            # logger.info(f"Sending initial state to client: {data}")
+            ws.send(json.dumps(data))
            
         # Keep connection alive
         while True:
             try:
-                ws.send("ping")
-                await asyncio.sleep(30)
+                data = get_gpio_states()
+                ws.send(json.dumps(data))
             except Exception as e:
                 logger.error(f"Failed to send ping: {e}")
                 break
@@ -191,7 +204,7 @@ def get_gpio_pins():
     """
     with gpio_lock:
         try:
-            available_pins = gpio_manager.get_available_pins()
+            available_pins = gpio_manager.get_valid_pins()
             configured_pins = gpio_manager.get_configured_pins()
             pins: list[dict[str, Any]] = []
             
@@ -242,7 +255,7 @@ def set_gpio_state():
             pin = int(data['pin'])
             state = data['state']
             
-            if pin not in gpio_manager.get_available_pins():
+            if pin not in gpio_manager.get_valid_pins():
                 return jsonify({'error': 'Invalid pin number'}), 400
                 
             if state not in [LOW, HIGH]:
