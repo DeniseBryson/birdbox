@@ -1,0 +1,259 @@
+{
+    "info": {
+        "name": "BirdBox API",
+        "description": "API collection for BirdBox system",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "System",
+            "description": "System management endpoints",
+            "item": [
+                {
+                    "name": "Health Check",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{base_url}}/health",
+                            "host": ["{{base_url}}"],
+                            "path": ["health"]
+                        },
+                        "description": "Simple health check endpoint for setup verification"
+                    }
+                },
+                {
+                    "name": "Get Version",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/system/version",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "system", "version"]
+                        },
+                        "description": "Get current system version information including git commit details"
+                    }
+                },
+                {
+                    "name": "Check Updates",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/system/check-update",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "system", "check-update"]
+                        },
+                        "description": "Check for available system updates"
+                    }
+                },
+                {
+                    "name": "Apply Update",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/system/update",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "system", "update"]
+                        },
+                        "description": "Apply available system updates"
+                    }
+                },
+                {
+                    "name": "Reload Server",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/system/reload",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "system", "reload"]
+                        },
+                        "description": "Reload the server to apply configuration changes"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Camera",
+            "description": "Camera control endpoints",
+            "item": [
+                {
+                    "name": "Get Camera Status",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/camera/status",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "camera", "status"]
+                        },
+                        "description": "Get current camera status"
+                    }
+                },
+                {
+                    "name": "Initialize Camera",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/camera/initialize/0",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "camera", "initialize", "0"]
+                        },
+                        "description": "Initialize camera with specified ID"
+                    }
+                },
+                {
+                    "name": "Stop Camera",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/camera/stop",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "camera", "stop"]
+                        },
+                        "description": "Stop active camera"
+                    }
+                },
+                {
+                    "name": "Start Recording",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/camera/record/start",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "camera", "record", "start"]
+                        },
+                        "description": "Start camera recording"
+                    }
+                },
+                {
+                    "name": "Stop Recording",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/camera/record/stop",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "camera", "record", "stop"]
+                        },
+                        "description": "Stop camera recording"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "GPIO",
+            "description": "GPIO control endpoints",
+            "item": [
+                {
+                    "name": "Get GPIO Pins",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{base_url}}/gpio/api/pins",
+                            "host": ["{{base_url}}"],
+                            "path": ["gpio", "api", "pins"]
+                        },
+                        "description": "Get list of available GPIO pins and their states"
+                    }
+                },
+                {
+                    "name": "Configure GPIO Pin",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{base_url}}/gpio/api/configure",
+                            "host": ["{{base_url}}"],
+                            "path": ["gpio", "api", "configure"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"pin\": 18,\n    \"mode\": \"OUT\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "Configure a GPIO pin's mode (IN or OUT)"
+                    }
+                },
+                {
+                    "name": "Set GPIO State",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{base_url}}/gpio/api/state",
+                            "host": ["{{base_url}}"],
+                            "path": ["gpio", "api", "state"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"pin\": 18,\n    \"state\": 1\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "Set a GPIO pin's state (0 or 1)"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Storage",
+            "description": "Storage management endpoints",
+            "item": [
+                {
+                    "name": "Get Storage Status",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{base_url}}/maintenance/storage/status",
+                            "host": ["{{base_url}}"],
+                            "path": ["maintenance", "storage", "status"]
+                        },
+                        "description": "Get storage status including space usage and video files"
+                    }
+                },
+                {
+                    "name": "Get Storage Config",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/config/storage",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "config", "storage"]
+                        },
+                        "description": "Get storage configuration including limits and thresholds"
+                    }
+                },
+                {
+                    "name": "Update Storage Config",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/config/storage",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "config", "storage"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"storage_limit\": 10000000000,\n    \"warning_threshold\": 0.8,\n    \"retention_days\": 30\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "Update storage configuration settings"
+                    }
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:5000",
+            "type": "string"
+        }
+    ]
+} 
