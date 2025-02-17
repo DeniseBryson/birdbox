@@ -8,18 +8,24 @@ class GPIOController {
         this.pins = [];  // Cache of pin states
         this.setupEventListeners();
         this.setupWebSocket();
+        this.dropdownPopulated = false;
     }
     
     setupWebSocket() {
         const ws = new WebSocket(`ws://${window.location.host}/ws/gpio-updates`);
-        
+        console.log('WebSocket opened');
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
+            console.log('WebSocket message received:', data);
             if (data.type === 'gpio_update') {
                 // Update our cache
                 if (data.data.pins) {
+                    console.log('got pins:', data.data.pins);
                     this.pins = data.data.pins;
-                    this.populatePinDropdown(this.pins);
+                    if (!this.dropdownPopulated) {
+                        this.populatePinDropdown(this.pins);
+                        this.dropdownPopulated = true;
+                    }
                     this.updateOverviewTable(this.pins);
                 }
                 if (data.data.states) {
@@ -64,7 +70,7 @@ class GPIOController {
         pins.sort((a, b) => a.number - b.number).forEach(pin => {
             const option = document.createElement('option');
             option.value = pin.number;
-            option.textContent = `GPIO ${pin.number} (${pin.configured ? pin.mode : 'Unconfigured'})`;
+            option.textContent = `GPIO ${pin.number} (${pin.configured ? pin.mode === 1 ? 'Input' : 'Output' : 'Unconfigured'})`;
             if (pin.number.toString() === currentValue) {
                 option.selected = true;
             }
@@ -73,6 +79,7 @@ class GPIOController {
     }
     
     updatePinStates(pins) {
+        console.log('Updating pin states:', pins);
         if (this.selectedPin) {
             const pin = pins.find(p => p.number === this.selectedPin);
             if (pin) {
@@ -82,6 +89,7 @@ class GPIOController {
     }
     
     updatePinStatus(pin) {
+        console.log('Updating pin status:', pin);
         const indicator = document.querySelector('.state-indicator');
         const text = document.querySelector('.state-text');
         if (!indicator || !text) return;  // Guard clause
@@ -95,7 +103,8 @@ class GPIOController {
     updateOverviewTable(pins) {
         const tbody = document.querySelector('#gpio-overview tbody');
         if (!tbody) return;  // Guard clause
-        
+
+        console.log('Updating overview table:', pins);
         tbody.innerHTML = '';
         
         // Sort pins by number for consistent display
@@ -103,7 +112,7 @@ class GPIOController {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td class="pin-number">GPIO ${pin.number}</td>
-                <td class="pin-mode">${pin.configured ? pin.mode : 'Unconfigured'}</td>
+                <td class="pin-mode">${pin.configured ? pin.mode === 1 ? 'Input' : 'Output' : 'Unconfigured'}</td>
                 <td class="pin-state">
                     <span class="state-indicator ${pin.state ? 'high' : 'low'}"></span>
                     <span class="state-text">${pin.state ? 'HIGH' : 'LOW'}</span>
@@ -126,7 +135,8 @@ class GPIOController {
             alert('Please select a GPIO pin first');
             return;
         }
-        
+
+        console.log('Configuring pin:', mode);
         try {
             const response = await fetch('/gpio/api/configure', {
                 method: 'POST',
@@ -151,6 +161,7 @@ class GPIOController {
     }
     
     async togglePinState(pin, newState) {
+        console.log('Toggling pin state:', pin, newState);
         try {
             // Use cached pin info instead of making a request
             const pinInfo = this.pins.find(p => p.number === pin);
