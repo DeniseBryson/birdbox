@@ -3,9 +3,9 @@ Logging configuration for BirdsOS
 """
 import os
 import logging.config
-from pathlib import Path
+from features.gpio.constants import IS_RASPBERRYPI
 
-LOG_DIR = "/var/log/birdbox"
+LOG_DIR = "/var/log/birdbox" if IS_RASPBERRYPI else os.path.expanduser('./logs/birdbox_logs')
 
 # Ensure log directory exists
 os.makedirs(LOG_DIR, exist_ok=True)
