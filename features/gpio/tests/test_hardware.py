@@ -6,7 +6,7 @@ STABLE - Core hardware interface tests
 import pytest
 from unittest.mock import Mock, patch
 from features.gpio.hardware import (
-    GPIOHardware, HIGH, LOW, IN, OUT, 
+    GPIOHardware, HIGH, LOW, IN, OUT, UNDEFINED,
     PUD_OFF, PUD_UP, PUD_DOWN, BOTH, BCM
 )
 

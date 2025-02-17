@@ -2,38 +2,35 @@
 GPIO Hardware Constants and Utilities
 STABLE - Hardware interface with singleton pattern
 """
-from collections.abc import Callable
 import logging
-from typing import Literal, Final, TypeAlias
-# For real hardware
-try:
-    import RPi.GPIO as RPI_GPIO
-except ImportError:
-    raise RuntimeError("Raspberry Pi GPIO library not found")
+from .constants import *
+from .gpio_interface import GPIOProtocol
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Type hints for GPIO values
-PinState = Literal[0, 1, -1]  # LOW, HIGH, UNDEFINED
-PinMode = Literal[0, 1]  # OUT, IN
-PullUpDown = Literal[20, 21, 22]  # PUD_OFF, PUD_DOWN, PUD_UP
+# Makes sure we are not using mock hardware on a real raspberry pi
+if not is_raspberrypi():
+    try:
+        # For mock hardware on non-Raspberry Pi systems
+        from . import mock_gpio as GPIO
+        logger.info("Using mock GPIO implementation for non-Raspberry Pi system")
+        if not isinstance(GPIO, GPIOProtocol):
+            raise TypeError("mockgpio does not implement required interface")
+    except:
+        raise RuntimeError("Code is not running on a raspberry pi, but Mock import failed")
+else:
+    # If we are on a raspberry pi, use the real hardware implementation
+    try:
+        # Try to import the real hardware implementation first
+        import RPi.GPIO as GPIO # type: ignore
+        logger.info("Using real Raspberry Pi GPIO hardware")
+        if not isinstance(GPIO, GPIOProtocol):
+            raise TypeError("RPi.GPIO does not implement required interface")
+    except ImportError:
+        raise RuntimeError("Raspberry Pi GPIO library not found")
 
-# GPIO Constants
-HIGH: Final[PinState] = 1
-LOW: Final[PinState] = 0
-UNDEFINED: Final[PinState] = -1
-IN: Final[PinMode] = 1
-OUT: Final[PinMode] = 0
-PUD_OFF: Final[PullUpDown] = 20
-PUD_UP: Final[PullUpDown] = 22
-PUD_DOWN: Final[PullUpDown] = 21
-BOTH: Final = 33
-BCM: Final = 11
-
-# Update callback type to include both pin and state
-EventCallback: TypeAlias = Callable[[int, PinState], None]
 
 class GPIOHardware:
     """
@@ -49,23 +46,24 @@ class GPIOHardware:
             cls._instance = super(GPIOHardware, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self): 
+    def __init__(self):
         # Only run initialization once
         if self._initialized:
             return
             
         self._initialized = True
-        self.gpio = RPI_GPIO
+        self.gpio = GPIO
         self.gpio.setmode(BCM)
-        logger.info("GPIO Manager initialized in BCM mode")
-        self._valid_pins: list[int] | None = None  # Initialize as None, will be populated on first get_valid_pins call
-        self.RPI_INFO = RPI_GPIO.RPI_INFO
+        logger.info("GPIO Manager initialized in BCM mode")            
+        self._valid_pins: list[int] | None = None
+        self.RPI_INFO = GPIO.RPI_INFO
 
     def get_valid_pins(self) -> list[int]:   
         """Get valid GPIO pins by checking gpio_function for all possible pins."""
-        if self._valid_pins is not None:
-            return self._valid_pins
-        
+        if hasattr(self, "_valid_pins"):
+            if self._valid_pins is not None:
+                return self._valid_pins        
+       
         valid_pins: list[int] = []
         # Check all possible BCM pins (0-27 should cover all Pi models)
         for pin in range(100):
@@ -92,7 +90,7 @@ class GPIOHardware:
                        edge_detection:bool=False,
                        bouncetime:int=200,
                        callback:EventCallback|None=None
-                       ):
+                       ) -> None:
         """
         Set up a pin as input with optional edge detection.
         Pull-up/down is optional but recommended for stable readings.
@@ -117,25 +115,20 @@ class GPIOHardware:
         
         if edge_detection:
             try:
-                # Create a wrapper that includes the pin state
-                def wrapped_callback(pin: int):
+                # Create a wrapper that adapts our callback to RPi.GPIO's expected signature
+                def gpio_callback(pin: int) -> None:
                     state = self.get_pin_state(pin)
-                    if callback!=None:
+                    if callback is not None:
                         callback(pin, state)
 
-                self.gpio.add_event_detect(
-                    pin, 
-                    BOTH,
-                    callback=wrapped_callback,
-                    bouncetime=bouncetime
-                )
+                self.gpio.add_event_detect(pin, BOTH, callback=gpio_callback, bouncetime=bouncetime)
                 logger.debug(f"Set up edge detection on pin {pin} with state-aware callback")
             except RuntimeError as e:
                 logger.error(f"Failed to set up edge detection on pin {pin}: {e}")
                 raise RuntimeError(f"Edge detection setup failed for pin {pin}. "
                                  f"Ensure valid pin number and proper permissions.")
 
-    def setup_output_pin(self, pin: int, initial_state: PinState = UNDEFINED):
+    def setup_output_pin(self, pin: int, initial_state: PinState = UNDEFINED) -> None:
         """
         Set up a pin as output with optional initial state.
 
@@ -157,10 +150,9 @@ class GPIOHardware:
             raise ValueError("Invalid pin number")
         
         state = self.gpio.input(pin)
-
         return HIGH if state else LOW
 
-    def set_output_state(self, pin: int, state: PinState):
+    def set_output_state(self, pin: int, state: PinState) -> None:
         """
         Set state of pin in output mode.
 
@@ -174,10 +166,11 @@ class GPIOHardware:
         if state not in [HIGH, LOW]:
             raise ValueError("Invalid initial state, must be HIGH or LOW")
 
+        # Convert PinState to bool for RPi.GPIO
         self.gpio.output(pin, bool(state))
         logger.info(f"Set pin {pin} state to {state}")
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """
         Clean up all GPIO resources.
         """
@@ -188,5 +181,3 @@ class GPIOHardware:
             self._valid_pins = None  # Reset valid pins on cleanup
         else:
             logger.info("GPIO library not found, skipping cleanup")
-
-   

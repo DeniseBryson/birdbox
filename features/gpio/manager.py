@@ -6,10 +6,9 @@ This module provides the core GPIO functionality for Raspberry Pi hardware.
 import logging
 import os
 from typing import Dict, List, Optional
-from .hardware import (
-    GPIOHardware, HIGH, LOW, IN, OUT, UNDEFINED,
-    PinMode, PinState, EventCallback
-)
+from .constants import HIGH, LOW, IN, OUT, UNDEFINED, PinMode, PinState, EventCallback, IS_RASPBERRYPI
+from .hardware import  GPIOHardware
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -54,20 +53,19 @@ class GPIOManager:
         self._output_pin_callbacks: Dict[int, EventCallback] = {}  # Stores callbacks for output pins
         
         # Initialize all pins as unconfigured
-        for pin in self.valid_pins:
+        for pin in self.get_valid_pins():
             self._pin_modes[pin] = None
             self._output_pin_states[pin] = LOW
         
         # Log hardware info
-        if self.is_raspberry_pi and hasattr(HW, "RPI_INFO"):
+        if IS_RASPBERRYPI and hasattr(HW, "RPI_INFO"):
             logger.info(f"Raspberry Pi Hardware Info:")
             for key, value in HW.RPI_INFO.items():
                 logger.info(f"  {key}: {value}")
         
         self._initialized = True
 
-    @property
-    def valid_pins(self) -> List[int]:
+    def get_valid_pins(self) -> List[int]:
         """Get list of valid GPIO pins."""
         return HW.get_valid_pins()
 
@@ -133,7 +131,6 @@ class GPIOManager:
             ValueError: If pin or state is invalid, or if pin is not configured as output
             RuntimeError: If pin is not configured
         """
-        logger.info(f"Setting pin {pin} state to {'HIGH' if state == HIGH else 'LOW'}")
         
         # Check if pin is configured
         mode = self._pin_modes.get(pin, None)
@@ -151,6 +148,7 @@ class GPIOManager:
             raise ValueError(f"Pin {pin} is not configured as output")
             
         # Set the state
+        logger.info(f"Setting pin {pin} state to {'HIGH' if state == HIGH else 'LOW'}")
         try:
             HW.set_output_state(pin, state)
             self._output_pin_states[pin] = state  # Track output pin state
@@ -176,7 +174,7 @@ class GPIOManager:
         """
         logger.debug(f"Getting state for pin {pin}")
         
-        if pin not in self.valid_pins:
+        if pin not in self.get_valid_pins():
             logger.error(f"Invalid GPIO pin: {pin}")
             return UNDEFINED
         

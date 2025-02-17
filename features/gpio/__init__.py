@@ -4,7 +4,7 @@ GPIO Feature Package
 This package provides GPIO control functionality for the BirdsOS project.
 It includes hardware abstraction, API endpoints, and real-time updates via WebSocket.
 """
-
+from .constants import *
 from .manager import GPIOManager
 from .routes import gpio_bp
 
