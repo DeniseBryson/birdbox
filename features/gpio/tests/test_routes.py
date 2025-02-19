@@ -6,7 +6,7 @@ import pytest
 import json
 from unittest.mock import Mock, patch
 from flask import Flask
-from flask_sock import Sock
+from flask_sock import Sock # type: ignore
 from flask.testing import FlaskClient
 from ..routes import gpio_bp, gpio_manager, active_connections
 from ..hardware import (
@@ -18,8 +18,8 @@ from ..hardware import (
 def app():
     """Create test Flask application"""
     app = Flask(__name__)
-    sock = Sock(app)
     app.register_blueprint(gpio_bp)
+    app.config['TESTING'] = True
     return app
 
 @pytest.fixture

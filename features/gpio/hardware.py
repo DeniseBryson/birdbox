@@ -81,7 +81,7 @@ class GPIOHardware:
             raise RuntimeError("No valid pins found")
         
         self._valid_pins = sorted(valid_pins)
-        logger.info(f"Valid pins found: {self._valid_pins}")
+        logger.debug(f"Valid pins found: {self._valid_pins}")
         return self._valid_pins
 
     def setup_input_pin(self,

@@ -47,7 +47,7 @@ def create_app():
     logger.info("Initializing BirdsOS application")
     
     # Initialize WebSocket
-    gpio_sock.init_app(app,)
+    gpio_sock.init_app(app, )
     #camera_sock.init_app(app)
     
     # Register blueprints

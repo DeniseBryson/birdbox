@@ -6,7 +6,7 @@ This module provides the core GPIO functionality for Raspberry Pi hardware.
 import logging
 import os
 from typing import Dict, List, Optional
-from .constants import HIGH, LOW, IN, OUT, UNDEFINED, PinMode, PinState, EventCallback, IS_RASPBERRYPI
+from .constants import HIGH, IN, OUT, UNDEFINED, PinMode, PinState, EventCallback, IS_RASPBERRYPI
 from .hardware import  GPIOHardware
 
 
@@ -53,9 +53,12 @@ class GPIOManager:
         self._output_pin_callbacks: Dict[int, EventCallback] = {}  # Stores callbacks for output pins
         
         # Initialize all pins as unconfigured
-        for pin in self.get_valid_pins():
+        valid_pins = self.get_valid_pins()
+        logger.info(f"Initial valid pins found: {valid_pins}")
+        for pin in (valid_pins):
             self._pin_modes[pin] = None
-            self._output_pin_states[pin] = LOW
+        logger.info(f"Initial pin modes: {self._pin_modes}")
+        logger.info(f"Initial output pin states: {self._output_pin_states}")
         
         # Log hardware info
         if IS_RASPBERRYPI and hasattr(HW, "RPI_INFO"):
@@ -63,6 +66,8 @@ class GPIOManager:
             for key, value in HW.RPI_INFO.items():
                 logger.info(f"  {key}: {value}")
         
+        logger.info(f"Initial output pin callbacks: {self._output_pin_callbacks}")
+
         self._initialized = True
 
     def get_valid_pins(self) -> List[int]:
@@ -89,10 +94,15 @@ class GPIOManager:
                 HW.setup_input_pin(pin, edge_detection=(callback is not None), callback=callback)
                 self._pin_modes[pin] = mode
                 logger.info(f"Successfully configured pin {pin} as {'IN' if mode == IN else 'OUT'}")
+                if self._output_pin_states.get(pin, None) is not None:
+                    del self._output_pin_states[pin]
+                    logger.info(f"removed pin {pin} from output pin state list")
+
             except Exception as e:
                 logger.error(f"Failed to configure pin {pin}: {str(e)}")
                 raise RuntimeError(f"Hardware configuration failed: {str(e)}")
-        else:
+        
+        if mode == OUT:
             try:
                 init_state= HIGH 
                 HW.setup_output_pin(pin, initial_state=init_state) 
@@ -102,12 +112,14 @@ class GPIOManager:
                     self._output_pin_callbacks[pin] = callback
                     logger.info(f"Successfully registered callback for pin {pin}")
                 self._output_pin_states[pin] = HIGH
-                logger.info(f"Setting initial state of configured pin {pin} to HIGH")
-                if callback:
-                    callback(pin, init_state)  # Trigger callback to initialize state
+                logger.info(f"Setting initial state of configured pin {pin} to {self._output_pin_states[pin]}")
             except Exception as e:
                 logger.error(f"Failed to configure pin {pin}: {str(e)}")
                 raise RuntimeError(f"Hardware configuration failed: {str(e)}")
+        
+        if callback:
+            logger.info(f"Triggering callback for pin {pin}")
+            callback(pin, self.get_pin_state(pin))
     
     def get_configured_pins(self) -> Dict[int, PinMode]:
         """
@@ -151,10 +163,14 @@ class GPIOManager:
         logger.info(f"Setting pin {pin} state to {'HIGH' if state == HIGH else 'LOW'}")
         try:
             HW.set_output_state(pin, state)
-            self._output_pin_states[pin] = state  # Track output pin state
+            if self._output_pin_states.get(pin, None) is not None:
+                self._output_pin_states[pin] = state  # Track output pin state
+            else:
+                logger.error(f"pin {pin} not in output pin state list, adding it")
+
             logger.info(f"Set pin {pin} to state {state}")
             callback = self._output_pin_callbacks.get(pin, None)
-            if callback:
+            if callback is not None:
                 callback(pin, state)  # Trigger callback with updated state
                 logger.info(f"Triggered callback for output pin {pin} with state {state}")
         except Exception as e:
