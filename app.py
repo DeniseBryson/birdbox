@@ -9,7 +9,7 @@ from routes.system_routes import system_bp
 from features.gpio.routes import gpio_bp, sock as gpio_sock
 from features.camera.routes import camera_bp
 from features.camera.ws_routes import ws_bp, sock as camera_sock
-from features.birdcontrol.motor_controller import MotorController
+from features.birdcontrol.birdcontrol import BirdControl
 
 import os
 import logging
@@ -41,12 +41,9 @@ verify_logging()
 def initialize_birdcontrol():
     """Initialize the bird control components"""
     # Initialize MotorController
-    motor_controller = MotorController()
-    motor_controller.turn_on()
-    logger.info("Motor PWM initialized and turned on")
+    BirdControl()
+    logger.info("BirdControl initialized")
     
-    # Initialize OpticalGates
-    optical_gates = OpticalGates(callback=lambda pin, state: logger.debug(f"Gate {pin} state changed to {state}"))
 
     
     
