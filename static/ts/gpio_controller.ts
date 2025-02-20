@@ -175,7 +175,7 @@ class GPIOController {
         }
         
         indicator.className = 'state-indicator';
-        indicator.classList.add(pin.state);
+        indicator.classList.add(pin.state===1?'HIGH': pin.state===0?'LOW':pin.state);
         const state = pin.state==='HIGH'?' [HIGH]':' [LOW]';
         const stateText = pin.mode === 'UNDEFINED' ? '' : state;
         text.textContent = `${pin.mode}${stateText}`;

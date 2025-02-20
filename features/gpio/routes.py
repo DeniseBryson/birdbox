@@ -3,6 +3,7 @@ GPIO API Routes
 
 This module provides the API endpoints for GPIO control.
 """
+#from hashlib import md5
 import json
 from operator import indexOf
 from typing import Any
@@ -55,6 +56,19 @@ def pin_state_changed(pin: int, state: int):
     for ws_id in dead_connections:
         cleanup_ws(ws_id)
 
+logger.info(f"Initializing GPIO callback for all configured pins")
+for pin in gpio_manager.get_valid_pins():
+    if pin in gpio_manager.get_configured_pins():
+        mode = gpio_manager.get_configured_pins()[pin]
+        logger.warning(f"Pin {pin} is configured as {mode}, overriding callback")
+        gpio_manager.configure_pin(pin, mode, callback=lambda p, state: pin_state_changed(p, state))
+    #else:
+        #gpio_manager.configure_pin(pin, IN, callback=lambda p, state: pin_state_changed(p, state))
+        #logger.info(f"Pin {pin} was not configured, configured as IN")
+logger.info(f"initial state: {gpio_manager.get_configured_pins()}")
+
+
+
 @gpio_bp.route('/')
 def control():
     """
@@ -101,7 +115,10 @@ def configure_gpio():
             
             if mode in ['IN', 'OUT']:
                 mode = IN if mode == 'IN' else OUT
-
+            
+            #TODO: SETUP ONE-TO-MANY CALLBACK INSTEAD OF OVERWRITING
+            #callback_hash = md5(f"{pin}_{mode}".encode()).hexdigest()
+            #callbacks[pin] = callback_hash
             gpio_manager.configure_pin(
                 pin, 
                 mode, 
@@ -133,7 +150,7 @@ def get_gpios_summary_update_message() -> dict[str, Any]:
     configured_pins: dict[int, PinMode] = gpio_manager.get_configured_pins()
     modes: list[int] = [configured_pins.get(pin, -1) for pin in pins]
     messageModes: list[str] = [
-        'HIGH'if mode == 1 else 'LOW'if mode ==0 else 'UNDEFINED'
+        'IN'if mode == 1 else 'OUT'if mode ==0 else 'UNDEFINED'
         for mode in modes
     ]
     states: list[dict[str, Any]] = [

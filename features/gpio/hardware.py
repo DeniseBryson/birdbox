@@ -3,8 +3,9 @@ GPIO Hardware Constants and Utilities
 STABLE - Hardware interface with singleton pattern
 """
 import logging
+
 from .constants import *
-from .gpio_interface import GPIOProtocol
+from .gpio_interface import GPIOProtocol, PWMProtocol
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -15,8 +16,11 @@ if not is_raspberrypi():
     try:
         # For mock hardware on non-Raspberry Pi systems
         from . import mock_gpio as GPIO
+        from .mock_gpio import PWM as PWM
         logger.info("Using mock GPIO implementation for non-Raspberry Pi system")
         if not isinstance(GPIO, GPIOProtocol):
+            raise TypeError("mockgpio does not implement required interface")
+        if not isinstance(PWM, PWMProtocol):
             raise TypeError("mockgpio does not implement required interface")
     except:
         raise RuntimeError("Code is not running on a raspberry pi, but Mock import failed")
@@ -25,13 +29,30 @@ else:
     try:
         # Try to import the real hardware implementation first
         import RPi.GPIO as GPIO # type: ignore
+        from RPi.GPIO import PWM as PWM# type: ignore
         logger.info("Using real Raspberry Pi GPIO hardware")
         if not isinstance(GPIO, GPIOProtocol):
+            raise TypeError("RPi.GPIO does not implement required interface")
+        if not isinstance(PWM, PWMProtocol):
             raise TypeError("RPi.GPIO does not implement required interface")
     except ImportError:
         raise RuntimeError("Raspberry Pi GPIO library not found")
 
+class PWMInfo:
+    """
+    Information about a PWM pin.
+    """
+    pin: int
+    frequency: int
+    duty_cycle: float | None
+    pwm: PWMProtocol
 
+    def __init__(self, pin: int, frequency: int, pwm: PWMProtocol):
+        self.pin = pin
+        self.frequency = frequency
+        self.duty_cycle = None
+        self.pwm = pwm
+        
 class GPIOHardware:
     """
     Manages GPIO operations with support for real Raspberry Pi hardware.
@@ -170,6 +191,14 @@ class GPIOHardware:
         self.gpio.output(pin, bool(state))
         logger.info(f"Set pin {pin} state to {state}")
 
+    def pwm(self, pin: int, frequency: int) -> PWMInfo:
+        """
+        Set up PWM for a GPIO pin.
+        """
+        new_pwm = PWM(pin, frequency)
+        return PWMInfo(pin, frequency, new_pwm)
+
+
     def cleanup(self) -> None:
         """
         Clean up all GPIO resources.
@@ -181,3 +210,4 @@ class GPIOHardware:
             self._valid_pins = None  # Reset valid pins on cleanup
         else:
             logger.info("GPIO library not found, skipping cleanup")
+

@@ -2,16 +2,17 @@
 BirdsOS - Main Application Entry Point
 """
 from flask import Flask, render_template, jsonify
+from features.birdcontrol.optical_gates import OpticalGates
 from routes.main_routes import main_bp
 from routes.api_routes import api_bp
 from routes.system_routes import system_bp
 from features.gpio.routes import gpio_bp, sock as gpio_sock
 from features.camera.routes import camera_bp
 from features.camera.ws_routes import ws_bp, sock as camera_sock
+from features.birdcontrol.motor_controller import MotorController
 
 import os
 import logging
-from config.logging import setup_logging
 
 def verify_logging():
     """Verify that all major components have logging configured"""
@@ -30,15 +31,26 @@ def verify_logging():
         logger.info(f"Logging verification for {logger_name}")
 
 # Set up logging configuration
-setup_logging()
 logger = logging.getLogger(__name__)
 
 # Verify logging is working across all components
 verify_logging()
 
+def initialize_birdcontrol():
+    """Initialize the bird control components"""
+    # Initialize MotorController
+    motor_controller = MotorController()
+    motor_controller.turn_on()
+    logger.info("Motor PWM initialized and turned on")
+    
+    # Initialize OpticalGates
+    optical_gates = OpticalGates(callback=lambda pin, state: logger.debug(f"Gate {pin} state changed to {state}"))
+
+    
+    
 def create_app():
     """Create and configure the Flask application"""
-    app = Flask(__name__)
+    app:Flask = Flask(__name__)
     
     # Configure app
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-please-change')
@@ -46,9 +58,13 @@ def create_app():
     
     logger.info("Initializing BirdsOS application")
     
+    # Initialize BirdControl
+    initialize_birdcontrol()
+    
     # Initialize WebSocket
-    gpio_sock.init_app(app, )
+    gpio_sock.init_app(app, ) # type: ignore
     #camera_sock.init_app(app)
+    
     
     # Register blueprints
     app.register_blueprint(main_bp)
@@ -82,7 +98,7 @@ if __name__ == '__main__':
     # Create necessary directories if they don't exist
     os.makedirs('logs', exist_ok=True)
     os.makedirs('recordings', exist_ok=True)
-    
+
     logger.info("Starting BirdsOS in development mode")
     # Run the application
     app.run(host='0.0.0.0', port=5000, debug=True) 
