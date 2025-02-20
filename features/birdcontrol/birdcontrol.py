@@ -2,7 +2,7 @@
 import logging
 from features.birdcontrol.motor_controller import MotorController
 from features.birdcontrol.optical_gates import OpticalGates
-from config.settings import PIN_CONFIG
+from config.settings import MOTOR_CONFIG, PIN_CONFIG
 import time
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ class BirdControl:
         self.start_pin = PIN_CONFIG['OPTICAL_GATE_1_PIN']
         self.end_pin = PIN_CONFIG['OPTICAL_GATE_2_PIN']
         self.is_running = False
-        self.timeout = PIN_CONFIG['MAX_ON_TIME']
+        self.timeout = MOTOR_CONFIG['MAX_ON_TIME']
 
         def callback(pin: int, state: int) -> None:
             logger.debug(f"Gate {pin} state changed to {state}, RÜTTELN!!")
