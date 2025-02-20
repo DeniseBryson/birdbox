@@ -1,6 +1,6 @@
 
 from typing import Callable
-from config.logging import logging
+import logging
 from config.settings import PIN_CONFIG
 from features.gpio.manager import gpio_manager as GPIOManager, IN, PinState
 logger = logging.getLogger(__name__)

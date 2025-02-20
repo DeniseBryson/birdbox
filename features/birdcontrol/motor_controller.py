@@ -1,5 +1,5 @@
 from features.gpio.manager import gpio_manager as GPIOManager, OUT
-from config.logging import logging
+import logging
 from config.settings import PIN_CONFIG, MOTOR_CONFIG
 
 logger = logging.getLogger(__name__)

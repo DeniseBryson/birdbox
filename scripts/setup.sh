@@ -12,12 +12,13 @@ echo "Installing to: ${INSTALL_PATH}"
 # Update system and install packages
 echo "Installing system packages..."
 sudo apt-get update
+sudo apt-get remove -y python3-rpi.gpio
 sudo apt-get install -y \
     git \
     python3-pip \
     python3-venv \
     python3-opencv \
-    python3-rpi.gpio \
+    python3-rpi-lgpio \
     python3-pytest \
     python3-flask \
     python3-requests \
@@ -44,7 +45,6 @@ pip install --upgrade pip wheel
 echo "Installing additional Python packages..."
 pip install flask-sock  # No apt package available for this
 pip install gunicorn   # Using pip for latest version
-pip remove RPi.GPIO   # Ensure GPIO is available in virtual environment
 pip install rpi-lgpio
 pip install pytest pytest-asyncio
 
