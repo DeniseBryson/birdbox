@@ -9,7 +9,8 @@ LOG_DIR = "/var/log/birdbox" if IS_RASPBERRYPI else os.path.expanduser('./logs/b
 
 # Ensure log directory exists
 os.makedirs(LOG_DIR, exist_ok=True)
-
+# TODO: Remove debug logging
+# 'level': 'DEBUG' if not IS_RASPBERRYPI else 'INFO',
 LOGGING_CONFIG = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -50,22 +51,22 @@ LOGGING_CONFIG = {
     'loggers': {
         '': {  # Root logger
             'handlers': ['app_file', 'error_file', 'debug_file'] if not IS_RASPBERRYPI else ['app_file', 'error_file'],
-            'level': 'DEBUG' if not IS_RASPBERRYPI else 'INFO'
+            'level': 'DEBUG'  # Always enable DEBUG logging
         },
         'features.camera': {
-            'level': 'DEBUG' if not IS_RASPBERRYPI else 'INFO',
+            'level': 'DEBUG',
             'propagate': True
         },
         'features.gpio': {
-            'level': 'DEBUG' if not IS_RASPBERRYPI else 'INFO',
+            'level': 'DEBUG',
             'propagate': True
         },
         'features.storage': {
-            'level': 'DEBUG' if not IS_RASPBERRYPI else 'INFO',
+            'level': 'DEBUG',
             'propagate': True
         },
         'features.birdcontrol': {
-            'level': 'DEBUG' if not IS_RASPBERRYPI else 'INFO',
+            'level': 'DEBUG',
             'propagate': True
         }
     }

@@ -2,7 +2,6 @@
 BirdsOS - Main Application Entry Point
 """
 from flask import Flask, render_template, jsonify
-from features.birdcontrol.optical_gates import OpticalGates
 from routes.main_routes import main_bp
 from routes.api_routes import api_bp
 from routes.system_routes import system_bp
@@ -58,11 +57,11 @@ def create_app():
     logger.info("Initializing BirdsOS application")
     
     # Initialize BirdControl
-    initialize_birdcontrol()
     
     # Initialize WebSocket
     gpio_sock.init_app(app, ) # type: ignore
     #camera_sock.init_app(app)
+    initialize_birdcontrol()
     
     
     # Register blueprints

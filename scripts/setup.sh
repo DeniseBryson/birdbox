@@ -83,13 +83,33 @@ RestartSec=10
 WantedBy=multi-user.target
 EOL
 
+sudo tee /etc/systemd/system/birdcontrol.service << EOL
+[Unit]
+Description=BirdControl Service
+After=network.target
+
+[Service]
+Type=simple
+User=birds
+Group=birds
+WorkingDirectory=/home/birds/birdbox
+Environment="PATH=/home/birds/birdbox/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/birds/birdbox/venv/bin/python3 run_birdcontrol.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOL
 # Start service
 echo "Starting service..."
 sudo systemctl daemon-reload
-sudo systemctl enable birdbox
-sudo systemctl restart birdbox
+#sudo systemctl enable birdbox
+sudo systemctl enable birdcontrol
+#sudo systemctl restart birdbox
+sudo systemctl restart birdcontrol
 
 echo "Setup complete!"
-echo "Access the web interface at: http://$(hostname -I | cut -d' ' -f1):8080"
+#echo "Access the web interface at: http://$(hostname -I | cut -d' ' -f1):8080"
 
 #TODO: RUN TESTS BUT ASK USER IF THEY WANT TO RUN THEM SINCE IT WILL CHANGE PIN STATES
