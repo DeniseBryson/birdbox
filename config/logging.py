@@ -28,7 +28,7 @@ LOGGING_CONFIG = {
             'maxBytes': 10485760,  # 10MB
             'backupCount': 5,
             'formatter': 'detailed',
-            'level': 'INFO'
+            'level': 'DEBUG' #if not IS_RASPBERRYPI else 'INFO'
         },
         'error_file': {
             'class': 'logging.handlers.RotatingFileHandler',
@@ -37,23 +37,35 @@ LOGGING_CONFIG = {
             'backupCount': 5,
             'formatter': 'detailed',
             'level': 'ERROR'
+        },
+        'debug_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOG_DIR, 'debug.log'),
+            'maxBytes': 10485760,  # 10MB
+            'backupCount': 5,
+            'formatter': 'detailed',
+            'level': 'DEBUG'
         }
     },
     'loggers': {
         '': {  # Root logger
-            'handlers': ['app_file', 'error_file'],
-            'level': 'INFO'
+            'handlers': ['app_file', 'error_file', 'debug_file'] if not IS_RASPBERRYPI else ['app_file', 'error_file'],
+            'level': 'DEBUG' if not IS_RASPBERRYPI else 'INFO'
         },
         'features.camera': {
-            'level': 'INFO',
+            'level': 'DEBUG' if not IS_RASPBERRYPI else 'INFO',
             'propagate': True
         },
         'features.gpio': {
-            'level': 'INFO',
+            'level': 'DEBUG' if not IS_RASPBERRYPI else 'INFO',
             'propagate': True
         },
         'features.storage': {
-            'level': 'INFO',
+            'level': 'DEBUG' if not IS_RASPBERRYPI else 'INFO',
+            'propagate': True
+        },
+        'features.birdcontrol': {
+            'level': 'DEBUG' if not IS_RASPBERRYPI else 'INFO',
             'propagate': True
         }
     }

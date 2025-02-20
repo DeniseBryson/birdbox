@@ -13,6 +13,7 @@ from features.birdcontrol.motor_controller import MotorController
 
 import os
 import logging
+from config.logging import setup_logging
 
 def verify_logging():
     """Verify that all major components have logging configured"""
@@ -31,6 +32,7 @@ def verify_logging():
         logger.info(f"Logging verification for {logger_name}")
 
 # Set up logging configuration
+setup_logging()
 logger = logging.getLogger(__name__)
 
 # Verify logging is working across all components

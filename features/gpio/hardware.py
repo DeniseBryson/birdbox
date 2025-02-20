@@ -7,8 +7,6 @@ import logging
 from .constants import *
 from .gpio_interface import GPIOProtocol, PWMProtocol
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Makes sure we are not using mock hardware on a real raspberry pi
@@ -52,6 +50,7 @@ class PWMInfo:
         self.frequency = frequency
         self.duty_cycle = None
         self.pwm = pwm
+        logger.debug(f"Created PWM instance for pin {pin} at {frequency}Hz")
         
 class GPIOHardware:
     """
@@ -78,6 +77,7 @@ class GPIOHardware:
         logger.info("GPIO Manager initialized in BCM mode")            
         self._valid_pins: list[int] | None = None
         self.RPI_INFO = GPIO.RPI_INFO
+        logger.debug("GPIO Hardware instance initialized")
 
     def get_valid_pins(self) -> list[int]:   
         """Get valid GPIO pins by checking gpio_function for all possible pins."""
@@ -171,6 +171,7 @@ class GPIOHardware:
             raise ValueError("Invalid pin number")
         
         state = self.gpio.input(pin)
+        logger.debug(f"Read state {state} from pin {pin}")
         return HIGH if state else LOW
 
     def set_output_state(self, pin: int, state: PinState) -> None:
@@ -195,15 +196,22 @@ class GPIOHardware:
         """
         Set up PWM for a GPIO pin.
         """
-        new_pwm = PWM(pin, frequency)
-        return PWMInfo(pin, frequency, new_pwm)
-
+        logger.debug(f"Setting up PWM on pin {pin} at {frequency}Hz")
+        try:
+            new_pwm = PWM(pin, frequency)
+            pwm_info = PWMInfo(pin, frequency, new_pwm)
+            logger.info(f"Successfully set up PWM on pin {pin}")
+            return pwm_info
+        except Exception as e:
+            logger.error(f"Failed to set up PWM on pin {pin}: {e}")
+            raise
 
     def cleanup(self) -> None:
         """
         Clean up all GPIO resources.
         """
         if self.gpio:
+            logger.debug("Starting GPIO cleanup")
             self.gpio.cleanup()
             logger.info("GPIO resources cleaned up")
             self._initialized = False
