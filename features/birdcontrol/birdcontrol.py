@@ -1,46 +1,48 @@
+
+import logging
+from features.birdcontrol.motor_controller import MotorController
+from features.birdcontrol.optical_gates import OpticalGates
+from config.settings import PIN_CONFIG
 import time
-try:
-    import RPi.GPIO as GPIO # type: ignore
-except ImportError:
-    from fake_rpi import GPIO
-from src.hardware.motor_controller import MotorController
-from src.hardware.optical_gates import OpticalGates
-from src.utils.logger import setup_logger
-from src.config.settings import MOTOR_CONFIG
 
-logger = setup_logger()
+logger = logging.getLogger(__name__)
 
-def main():
-    try:
-        motors = MotorController()
-        gates = OpticalGates()
-        current_freq = MOTOR_CONFIG['INITIAL_FREQUENCY']
+class BirdControl:
+    """
+    Manages the control of two motors by reading the state of the optical gates.
+    """
+    def __init__(self):
+        self.motors = MotorController()
+        self.start_pin = PIN_CONFIG['OPTICAL_GATE_1_PIN']
+        self.end_pin = PIN_CONFIG['OPTICAL_GATE_2_PIN']
+        
+        def callback(pin: int, state: int) -> None:
+            logger.debug(f"Gate {pin} state changed to {state}, RÜTTELN!!")
+            if pin == self.start_pin:
+                self.motors.turn_on()       
+                time.sleep(5)
+                self.motors.turn_off()
+            elif pin == self.end_pin:
+                self.motors.turn_off()
 
+        self.optical_gates = OpticalGates(callback=callback)
         logger.info("System initialized and ready")
-
+        
+def main():
+    """Initialize the bird control components"""
+    try:
+        BirdControl()
         while True:
-            gate1_state, gate2_state = gates.read_gates()
-
-            if not gate1_state:  # Gate 1 triggered
-                logger.info("Optical gate 1 triggered - Starting motors")
-                motors.turn_on()
-                # Vary frequency
-                current_freq = (current_freq % MOTOR_CONFIG['MAX_FREQUENCY']) + MOTOR_CONFIG['MIN_FREQUENCY']
-                motors.set_frequency(current_freq)
-
-            if not gate2_state:  # Gate 2 triggered
-                logger.info("Optical gate 2 triggered - Stopping motors")
-                motors.turn_off()
-
-            time.sleep(0.1)
+            time.sleep(5)
+            logger.info("System running")
 
     except KeyboardInterrupt:
         logger.info("Program terminated by user")
     except Exception as e:
         logger.error(f"Unexpected error occurred: {e}")
     finally:
-        motors.cleanup()
-        GPIO.cleanup()
+        #motors.cleanup()
+        #GPIO.cleanup()
         logger.info("GPIO cleanup completed")
 
 if __name__ == "__main__":

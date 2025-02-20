@@ -109,7 +109,7 @@ class GPIOManager:
                     logger.warning(f"Pin {pin} already configured as {current_mode}. Overwriting callback!")
                 HW.setup_input_pin(pin, edge_detection=(callback is not None), callback=callback)
                 self._pin_modes[pin] = mode
-                logger.info(f"Successfully configured pin {pin} as 'IN'")
+                logger.info(f"Successfully configured pin {pin} as 'IN'{' including callback' if callback is not None else ''}")
                 
                 if self._output_pin_states.get(pin, None) is not None:
                     del self._output_pin_states[pin]
@@ -123,10 +123,11 @@ class GPIOManager:
             try:
                 if current_mode is not None:
                     logger.warning(f"Pin {pin} already configured as {current_mode}. Overwriting callback!")
-                init_state= HIGH 
-                HW.setup_output_pin(pin, initial_state=init_state) 
-                self._pin_modes[pin] = mode
-                logger.info(f"Successfully configured pin {pin} as 'OUT'")
+                if current_mode is not mode:
+                    init_state= HIGH 
+                    HW.setup_output_pin(pin, initial_state=init_state) 
+                    self._pin_modes[pin] = mode
+                    logger.info(f"Successfully configured pin {pin} as 'OUT'")
                 if callback:
                     self._output_pin_callbacks[pin] = callback
                     logger.info(f"Successfully registered callback for pin {pin}")
