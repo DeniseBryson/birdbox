@@ -56,17 +56,34 @@ def pin_state_changed(pin: int, state: int):
     for ws_id in dead_connections:
         cleanup_ws(ws_id)
 
-logger.info(f"Initializing GPIO callback for all configured pins")
+def pin_cleared(pin: int, state: int):
+    """Callback for GPIO pin state changes."""
+    message = json.dumps({
+        'type': 'gpio_pin_update',
+        'data': {
+            'pin': pin,
+            'state': 'UNDEFINED'
+        }
+    })
+    
+    # Broadcast to all active connections
+    dead_connections: list[str] = []
+    for ws_id, ws in active_connections.items():
+        try:
+            logger.info(f"Sending pin change message to websocket {ws_id}: {message}")
+            ws.send(message) # type: ignore
+        except Exception as e:
+            logger.error(f"Failed to send update to websocket {indexOf(active_connections, ws)}: {e}")
+            dead_connections.append(ws_id)
+    # Clean up dead connections
+    for ws_id in dead_connections:
+        cleanup_ws(ws_id)
+logger.info(f"Initializing GPIO watch callbacks for all valid pins")
 for pin in gpio_manager.get_valid_pins():
-    if pin in gpio_manager.get_configured_pins():
-        mode = gpio_manager.get_configured_pins()[pin]
-        logger.warning(f"Pin {pin} is configured as {mode}, overriding callback")
-        gpio_manager.configure_pin(pin, mode, callback=lambda p, state: pin_state_changed(p, state))
-    #else:
-        #gpio_manager.configure_pin(pin, IN, callback=lambda p, state: pin_state_changed(p, state))
-        #logger.info(f"Pin {pin} was not configured, configured as IN")
-logger.info(f"initial state: {gpio_manager.get_configured_pins()}")
-
+    try:
+        gpio_manager.watch_pin(pin, callback=lambda p, state: pin_state_changed(p, state))
+    except Exception as e:
+        logger.error(f"Failed to watch pin {pin}: {e}")
 
 
 @gpio_bp.route('/')

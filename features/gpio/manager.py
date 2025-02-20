@@ -5,7 +5,7 @@ This module provides the core GPIO functionality for Raspberry Pi hardware.
 """
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set, NamedTuple
 
 from .constants import HIGH, IN, OUT, UNDEFINED, PinMode, PinState, EventCallback, IS_RASPBERRYPI
 from .hardware import  GPIOHardware, PWMInfo
@@ -17,6 +17,17 @@ logger = logging.getLogger(__name__)
 
 # Create hardware interface
 HW = GPIOHardware()
+
+class CallbackInfo(NamedTuple):
+    """
+    Container for callback information.
+    
+    Attributes:
+        on_change: Callback function called when pin state changes
+        on_clear: Optional callback function called when the callback is removed
+    """
+    on_change: EventCallback
+    on_clear: Optional[EventCallback] = None
 
 class GPIOManager:
     """
@@ -51,7 +62,7 @@ class GPIOManager:
         
         self._pin_modes: Dict[int, PinMode|None] = {}  # Stores pin modes (IN/OUT)
         self._output_pin_states: Dict[int, PinState] = {}  # Stores pin states for output pins
-        self._output_pin_callbacks: Dict[int, EventCallback] = {}  # Stores callbacks for output pins
+        self._pin_callbacks: Dict[int, Set[CallbackInfo]] = {}  # Stores all callbacks for all pins
         self._pwm_pins: Dict[int, PWMInfo] = {}  # Stores PWM objects for PWM pins
 
         # Initialize all pins as unconfigured
@@ -59,6 +70,7 @@ class GPIOManager:
         logger.info(f"Initial valid pins found: {valid_pins}")
         for pin in (valid_pins):
             self._pin_modes[pin] = None
+            self._pin_callbacks[pin] = set()
         logger.info(f"Initial pin modes: {self._pin_modes}")
         logger.info(f"Initial output pin states: {self._output_pin_states}")
         
@@ -68,7 +80,7 @@ class GPIOManager:
             for key, value in HW.RPI_INFO.items():
                 logger.info(f"  {key}: {value}")
         
-        logger.info(f"Initial output pin callbacks: {self._output_pin_callbacks}")
+        logger.info(f"Initial pin callbacks: {self._pin_callbacks}")
 
         self._initialized = True
 
@@ -76,44 +88,43 @@ class GPIOManager:
         """Get list of valid GPIO pins."""
         return HW.get_valid_pins()
 
-    def configure_pin(self, pin: int, mode: PinMode, callback: Optional[EventCallback] = None, callback_id: Optional[str] = None) -> None:
+    def configure_pin(self, pin: int, mode: PinMode, callback: Optional[EventCallback] = None, on_clear: Optional[EventCallback] = None) -> None:
         """
-        Configure a GPIO pin with the specified mode and optional callback for input pins.
+        Configure a GPIO pin with the specified mode and optional callbacks.
+        A pin can only be configured once. Use clear_pin() to reset configuration.
         
         Args:
             pin (int): The GPIO pin number
             mode (int): Either IN or OUT
-            callback (Optional[Callable]): Callback function for input pin changes
+            callback (Optional[Callable]): Optional callback function for pin changes
+            on_clear (Optional[Callable]): Optional callback function called when the callback is removed
             
         Raises:
             ValueError: If pin or mode is invalid
-            RuntimeError: If hardware access fails
-        
-        Description:
-            This function is used to configure a GPIO pin with the specified mode and optional callback for input pins.
-        
-        TODO:
-            - Setup one-to-many callback instead of overwriting callback
+            RuntimeError: If pin is already configured or hardware access fails
         """
         logger.info(f"Configuring pin {pin} as {'IN' if mode == IN else 'OUT'}")
         
+        # Check if pin is already configured
         current_mode = self._pin_modes.get(pin, None)
-        if current_mode is 'OUT' and mode is IN:
-            logger.warning(f"Pin {pin} is currently configured as 'OUT'. Removing OUT callback and to prepare setting to IN")
-            self._output_pin_callbacks.pop(pin, None)
+        if current_mode is not None:
+            raise RuntimeError(f"Pin {pin} is already configured as {current_mode}. Use clear_pin() first to reconfigure.")
 
-        #TODO: SETUP ONE-TO-MANY CALLBACK INSTEAD OF OVERWRITING
         if mode == IN:
             try:
-                if current_mode is not None:
-                    logger.warning(f"Pin {pin} already configured as {current_mode}. Overwriting callback!")
-                HW.setup_input_pin(pin, edge_detection=(callback is not None), callback=callback)
+                # Create a wrapper that will call all registered callbacks
+                def input_callback(pin: int, state: PinState) -> None:
+                    for cb_info in self._pin_callbacks[pin]:
+                        try:
+                            cb_info.on_change(pin, state)
+                        except Exception as e:
+                            logger.error(f"Error in callback for pin {pin}: {e}")
+                        
+                HW.setup_input_pin(pin, edge_detection=True, callback=input_callback)
                 self._pin_modes[pin] = mode
+                if callback:
+                    self._pin_callbacks[pin].add(CallbackInfo(on_change=callback, on_clear=on_clear))
                 logger.info(f"Successfully configured pin {pin} as 'IN'{' including callback' if callback is not None else ''}")
-                
-                if self._output_pin_states.get(pin, None) is not None:
-                    del self._output_pin_states[pin]
-                    logger.info(f"removed pin {pin} from output pin state list")
 
             except Exception as e:
                 logger.error(f"Failed to configure pin {pin}: {str(e)}")
@@ -121,26 +132,91 @@ class GPIOManager:
         
         if mode == OUT:
             try:
-                if current_mode is not None:
-                    logger.warning(f"Pin {pin} already configured as {current_mode}. Overwriting callback!")
-                if current_mode is not mode:
-                    init_state= HIGH 
-                    HW.setup_output_pin(pin, initial_state=init_state) 
-                    self._pin_modes[pin] = mode
-                    logger.info(f"Successfully configured pin {pin} as 'OUT'")
+                init_state = HIGH
+                HW.setup_output_pin(pin, initial_state=init_state) 
+                self._pin_modes[pin] = mode
+                self._output_pin_states[pin] = init_state
                 if callback:
-                    self._output_pin_callbacks[pin] = callback
-                    logger.info(f"Successfully registered callback for pin {pin}")
-                self._output_pin_states[pin] = HIGH
-                logger.info(f"Setting initial state of configured pin {pin} to {self._output_pin_states[pin]}")
+                    self._pin_callbacks[pin].add(CallbackInfo(on_change=callback, on_clear=on_clear))
+                logger.info(f"Successfully configured pin {pin} as 'OUT' with initial state {init_state}")
             except Exception as e:
                 logger.error(f"Failed to configure pin {pin}: {str(e)}")
                 raise RuntimeError(f"Hardware configuration failed: {str(e)}")
         
+        # Trigger initial callback if provided
         if callback:
-            logger.info(f"Triggering callback for pin {pin}")
+            logger.info(f"Triggering initial callback for pin {pin}")
+            try:
+                callback(pin, self.get_pin_state(pin))
+            except Exception as e:
+                logger.error(f"Error in initial callback for pin {pin}: {e}")
+
+    def watch_pin(self, pin: int, callback: EventCallback, on_clear: Optional[EventCallback] = None) -> None:
+        """
+        Add a callback to watch a pin's state changes without modifying its configuration.
+        
+        Args:
+            pin (int): The GPIO pin number
+            callback (Callable): Callback function for pin changes
+            on_clear (Optional[Callable]): Optional callback function called when the callback is removed
+            
+        Raises:
+            RuntimeError: If pin is not configured
+        """
+        if pin not in self._pin_modes or self._pin_modes[pin] is None:
+            logger.warning(f"Pin {pin} is not (yet) configured, still added watch callback.")
+        if pin not in self.get_valid_pins():
+            raise ValueError(f"Invalid pin number: {pin}")
+        
+        callback_info = CallbackInfo(on_change=callback, on_clear=on_clear)
+        self._pin_callbacks[pin].add(callback_info)
+        logger.info(f"Added callback for pin {pin}")
+        try:
+            # Trigger initial callback with current state
             callback(pin, self.get_pin_state(pin))
-    
+        except Exception as e:
+            logger.error(f"Error in initial callback for pin {pin}: {e}")
+
+    def clear_pin(self, pin: int) -> None:
+        """
+        Clear a pin's configuration and all associated callbacks.
+        After clearing, the pin can be configured again.
+        
+        Args:
+            pin (int): The GPIO pin number
+            
+        Raises:
+            ValueError: If pin is invalid
+            RuntimeError: If hardware cleanup fails
+        """
+        if pin not in self.get_valid_pins():
+            raise ValueError(f"Invalid pin number: {pin}")
+            
+        # Call onClear callbacks before removing them
+        for callback_info in self._pin_callbacks[pin]:
+            if callback_info.on_clear:
+                try:
+                    callback_info.on_clear(pin, self.get_pin_state(pin))
+                except Exception as e:
+                    logger.error(f"Error in onClear callback for pin {pin}: {e}")
+        
+        # Remove all callbacks
+        self._pin_callbacks[pin].clear()
+        
+        # Clear output state if it was an output pin
+        self._output_pin_states.pop(pin, None)
+        
+        # Clear pin mode
+        self._pin_modes[pin] = None
+        
+        # Remove hardware configuration
+        try:
+            HW.cleanup(pin=pin)
+            logger.info(f"Cleared configuration for pin {pin}")
+        except Exception as e:
+            logger.error(f"Failed to clear pin {pin}: {str(e)}")
+            raise RuntimeError(f"Hardware cleanup failed: {str(e)}")
+
     def get_configured_pins(self) -> Dict[int, PinMode]:
         """
         Get dictionary of configured pins and their modes.
@@ -161,7 +237,7 @@ class GPIOManager:
             
         Raises:
             ValueError: If pin or state is invalid, or if pin is not configured as output
-            RuntimeError: If pin is not configured
+            RuntimeError: If pin is not configured or hardware access fails
         """
         
         # Check if pin is configured
@@ -174,7 +250,6 @@ class GPIOManager:
             logger.error(f"Pin {pin} is not configured as input or output")
             raise ValueError(f"Pin {pin} is not configured as input or output")
         
-        # Check if pin is input
         if mode != OUT:
             logger.error(f"Cannot set state for input pin {pin}")
             raise ValueError(f"Pin {pin} is not configured as output")
@@ -183,16 +258,17 @@ class GPIOManager:
         logger.info(f"Setting pin {pin} state to {'HIGH' if state == HIGH else 'LOW'}")
         try:
             HW.set_output_state(pin, state)
-            if self._output_pin_states.get(pin, None) is not None:
-                self._output_pin_states[pin] = state  # Track output pin state
-            else:
-                logger.error(f"pin {pin} not in output pin state list, adding it")
-
+            self._output_pin_states[pin] = state  # Track output pin state
+            
+            # Trigger all callbacks
+            for callback_info in self._pin_callbacks[pin]:
+                try:
+                    callback_info.on_change(pin, state)
+                    logger.debug(f"Triggered callback for output pin {pin} with state {state}")
+                except Exception as e:
+                    logger.error(f"Error in callback for pin {pin}: {e}")
+                    
             logger.info(f"Set pin {pin} to state {state}")
-            callback = self._output_pin_callbacks.get(pin, None)
-            if callback is not None:
-                callback(pin, state)  # Trigger callback with updated state
-                logger.info(f"Triggered callback for output pin {pin} with state {state}")
         except Exception as e:
             logger.error(f"Failed to set pin {pin} state: {str(e)}")
             raise RuntimeError(f"Failed to set pin state: {str(e)}")
@@ -362,10 +438,19 @@ class GPIOManager:
             RuntimeError: If cleanup fails
         """
         try:
+            # Call onClear callbacks for all pins
+            for pin, callbacks in self._pin_callbacks.items():
+                for callback_info in callbacks:
+                    if callback_info.on_clear:
+                        try:
+                            callback_info.on_clear(pin, self.get_pin_state(pin))
+                        except Exception as e:
+                            logger.error(f"Error in onClear callback for pin {pin}: {e}")
+            
             HW.cleanup()
             self._output_pin_states.clear()
             self._pin_modes.clear()
-            self._output_pin_callbacks.clear()
+            self._pin_callbacks.clear()
             [self.remove_pwm(pin) for pin in self._pwm_pins]
             self._pwm_pins.clear()
         except Exception as e:

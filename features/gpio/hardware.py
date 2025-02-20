@@ -3,6 +3,7 @@ GPIO Hardware Constants and Utilities
 STABLE - Hardware interface with singleton pattern
 """
 import logging
+from typing import Optional
 
 from .constants import *
 from .gpio_interface import GPIOProtocol, PWMProtocol
@@ -206,16 +207,28 @@ class GPIOHardware:
             logger.error(f"Failed to set up PWM on pin {pin}: {e}")
             raise
 
-    def cleanup(self) -> None:
+    def cleanup(self, pin: Optional[int] = None) -> None:
         """
-        Clean up all GPIO resources.
+        Clean up GPIO resources.
+        
+        Args:
+            pin: Optional pin number to clean up. If None, cleans up all pins.
         """
-        if self.gpio:
-            logger.debug("Starting GPIO cleanup")
-            self.gpio.cleanup()
-            logger.info("GPIO resources cleaned up")
-            self._initialized = False
-            self._valid_pins = None  # Reset valid pins on cleanup
-        else:
+        if not self.gpio:
             logger.info("GPIO library not found, skipping cleanup")
+            return
+            
+        try:
+            if pin is None:
+                logger.debug("Starting GPIO cleanup for all pins")
+                self.gpio.cleanup()
+                self._initialized = False
+                self._valid_pins = None  # Reset valid pins on cleanup
+            else:
+                logger.debug(f"Starting GPIO cleanup for pin {pin}")
+                self.gpio.cleanup(pin)
+            logger.info("GPIO resources cleaned up")
+        except Exception as e:
+            logger.error(f"GPIO cleanup failed: {e}")
+            raise RuntimeError(f"GPIO cleanup failed: {e}")
 
