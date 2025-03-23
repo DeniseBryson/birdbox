@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Camera - BirdsOS{% endblock %}
+
+{% block content %}
+<h1>Camera Control</h1>
+<div class="row mt-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Live Feed</h5>
+                <div id="camera-feed" class="bg-dark text-light p-5 text-center">
+                    <img id="stream-image" class="img-fluid" style="display: none;">
+                    <div id="stream-placeholder">Connecting to camera...</div>
+                    <div id="stream-error" class="text-danger" style="display: none;"></div>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-primary" id="start-stream" disabled>Connect</button>
+                    <button class="btn btn-danger" id="stop-stream" style="display: none;">Disconnect</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Controls</h5>
+                <button class="btn btn-primary mb-2 w-100" id="start-recording">Start Recording</button>
+                <button class="btn btn-danger mb-2 w-100" id="stop-recording">Stop Recording</button>
+                <hr>
+                <h6>Recent Recordings</h6>
+                <div id="recordings-list">
+                    No recordings yet
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Load Camera Stream Controller -->
+<script src="{{ url_for('static', filename='js/camera_stream.js') }}"></script>
+<script>
+    let cameraStream;
+    
+    // Initialize camera stream when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+        cameraStream = new CameraStream();
+        // Auto-connect when page loads
+        cameraStream.startStream();
+    });
+    
+    // Cleanup when page is closed/navigated away
+    window.addEventListener('beforeunload', () => {
+        if (cameraStream) {
+            cameraStream.stopStream();
+        }
+    });
+    
+    // Recording controls
+    document.getElementById('start-recording').addEventListener('click', function() {
+        fetch('/api/v1/camera/record/start', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Recording started:', data);
+        });
+    });
+    
+    document.getElementById('stop-recording').addEventListener('click', function() {
+        fetch('/api/v1/camera/record/stop', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Recording stopped:', data);
+        });
+    });
+</script>
+{% endblock %} 

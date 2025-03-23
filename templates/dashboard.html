@@ -1,0 +1,47 @@
+<!--
+    STABLE
+    Dashboard template for BirdsOS
+    Contains system overview and status cards
+    Last verified: Current
+-->
+{% extends "base.html" %}
+
+{% block title %}Dashboard - BirdsOS{% endblock %}
+
+{% block content %}
+<h1>Dashboard</h1>
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">System Status</h5>
+                <p class="card-text">System is operational</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Camera Status</h5>
+                <p class="card-text">Camera is ready</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Food Level</h5>
+                <p class="card-text">Food level is adequate</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'components/storage_status.html' %}
+{% include 'components/version_info.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ url_for('static', filename='js/storage_status.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/version_manager.js') }}"></script>
+{% endblock %} 

@@ -1,0 +1,3 @@
+"""
+Camera feature tests package
+""" 

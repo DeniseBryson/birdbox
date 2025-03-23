@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration - BirdsOS{% endblock %}
+
+{% block content %}
+<h1>System Configuration</h1>
+
+<div class="row mt-4">
+    <div class="col-12">
+        {% include 'components/storage_config.html' %}
+        {% include 'components/profiles_config.html' %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ url_for('static', filename='js/storage_config.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/profiles_config.js') }}"></script>
+{% endblock %} 

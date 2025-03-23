@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - BirdsOS{% endblock %}
+
+{% block content %}
+<h1>System Analytics</h1>
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Visit Statistics</h5>
+                <div id="visit-stats">Loading visit statistics...</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Feeding Patterns</h5>
+                <div id="feeding-patterns">Loading feeding patterns...</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Analytics functionality will be implemented here
+</script>
+{% endblock %} 

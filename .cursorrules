@@ -1,0 +1,71 @@
+# BirdsOS Project Rules
+
+## Code Protection Rules
+- Any file marked as "STABLE" in its header comments must not be modified without explicit user permission
+- Files containing working, tested features must be marked as "STABLE" in their header
+
+## Route Structure
+- Route documentation is maintained in `routes.md`
+- Route implementations are in the `routes/` directory:
+  - `routes/main_routes.py`: UI routes
+  - `routes/api_routes.py`: API endpoints
+  - `routes/ws_routes.py`: WebSocket endpoints
+- Changes to route structure must be reflected in both implementation and documentation
+- All route changes require corresponding test updates
+
+## Testing Rules
+- All new features must include corresponding tests
+- Tests must be run after each feature implementation
+- If tests fail after a new feature:
+  1. Only the new code should be revised first
+  2. If existing code needs modification, an "ATTENTION" notice must be presented to the user
+  3. No changes to stable code without user approval
+
+## Development Process
+1. Feature Implementation:
+   - Implement minimal working version
+   - Add tests
+   - Run full test suite
+   - Mark as "STABLE" when approved
+
+2. Bug Fixes:
+   - Fix implementation
+   - Add regression test
+   - Run full test suite
+   - Get approval for stable code changes
+
+3. UI Changes:
+   - Test all UI interactions
+   - Document any API changes
+   - Get explicit approval for camera page changes
+
+## Version Control
+- Commit messages must follow conventional commit messages
+- Separate commits for:
+  - Feature implementation
+  - Test additions
+  - Documentation updates
+
+## Documentation
+- All stable features must be documented
+- API changes require documentation updates
+- Configuration changes must be documented
+
+## Server Management
+- Server must be restarted after configuration changes
+- Database migrations must be approved
+- Environment variables must be documented
+- User runs `python app.py` to start the server at port 5000
+- If server is not running, ask user to run `python app.py` instead of trying to start it
+
+## Security
+- No hardcoded credentials
+- API keys must use environment variables
+- Security-related changes require explicit approval
+
+## Frontend Organization
+- JavaScript code must be separated into dedicated .js files in static/js/
+- HTML components should be modular and stored in templates/components/
+- Each feature's UI components should have their own directory
+- Keep JavaScript files focused and under 200 lines
+- Keep HTML components focused and under 100 lines

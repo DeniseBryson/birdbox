@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}GPIO Control - BirdsOS{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>GPIO Control Panel</h1>
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">GPIO Pin Management</h5>
+                    <div class="gpio-controls">
+                        <div class="form-group mb-3">
+                            <label for="gpio-pin-select">Select GPIO Pin</label>
+                            <select id="gpio-pin-select" class="form-select">
+                                <option value="">Choose a pin...</option>
+                            </select>
+                        </div>
+                        <div class="btn-group mb-3" role="group">
+                            <button type="button" class="btn btn-outline-primary" id="set-input">Set Input</button>
+                            <button type="button" class="btn btn-outline-primary" id="set-output">Set Output</button>
+                        </div>
+                        <div id="pin-status" class="mt-3">
+                            <div class="pin-state">
+                                <span class="state-indicator"></span>
+                                <span class="state-text"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Pin Overview</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="gpio-overview">
+                            <thead>
+                                <tr>
+                                    <th>Pin</th>
+                                    <th>Mode</th>
+                                    <th>State</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Dynamically populated -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Load GPIO Controller -->
+<script src="{{ url_for('static', filename='js/gpio_controller.js') }}"></script>
+<script>
+    // Initialize GPIO controller when page loads
+    let gpioController;
+    document.addEventListener('DOMContentLoaded', () => {
+        gpioController = new GPIOController();
+    });
+</script>
+
+<style>
+.gpio-controls {
+    padding: 1rem;
+}
+
+#gpio-overview {
+    margin-top: 1rem;
+    table-layout: fixed;
+    width: 100%;
+}
+
+#gpio-overview th,
+#gpio-overview td {
+    vertical-align: middle;
+    height: 48px;  /* Fixed height for all rows */
+}
+
+#gpio-overview .pin-number {
+    width: 25%;
+}
+
+#gpio-overview .pin-mode {
+    width: 25%;
+}
+
+#gpio-overview .pin-state {
+    width: 25%;
+    white-space: nowrap;
+}
+
+#gpio-overview .pin-actions {
+    width: 25%;
+    text-align: center;
+}
+
+.toggle-btn {
+    width: 80px;  /* Fixed width for toggle buttons */
+}
+
+.no-action {
+    display: inline-block;
+    width: 80px;  /* Match button width */
+    text-align: center;
+}
+
+.state-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.state-indicator.high {
+    background-color: #28a745;
+}
+
+.state-indicator.low {
+    background-color: #dc3545;
+}
+
+.state-text {
+    display: inline-block;
+    min-width: 40px;  /* Fixed width for state text */
+}
+
+.pin-state {
+    padding: 0.5rem;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background-color: #f8f9fa;
+}
+</style>
+{% endblock %} 

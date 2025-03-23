@@ -1,0 +1,26 @@
+<!--
+    Version information component
+    Displays current version and update status
+-->
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">System Version</h5>
+        <div class="row">
+            <div class="col-md-8">
+                <p class="mb-2">
+                    Version: <code id="commit-hash">Loading...</code>
+                    <small class="text-muted" id="commit-date"></small>
+                </p>
+                <p class="mb-2" id="update-status"></p>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-primary btn-sm" id="check-update">Check for Updates</button>
+                <button class="btn btn-success btn-sm d-none" id="apply-update">Apply Update</button>
+            </div>
+        </div>
+        <div class="alert alert-info d-none" id="update-info">
+            New version available! Changes:
+            <pre id="update-changes" class="mt-2 mb-0 small"></pre>
+        </div>
+    </div>
+</div> 

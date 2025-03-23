@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Maintenance - BirdsOS{% endblock %}
+
+{% block content %}
+<h1>System Maintenance</h1>
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Food Level</h5>
+                <div id="food-level">Loading food level...</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Storage Status</h5>
+                <div id="storage-status">Loading storage status...</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Maintenance functionality will be implemented here
+</script>
+{% endblock %} 

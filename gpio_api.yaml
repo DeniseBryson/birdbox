@@ -1,0 +1,200 @@
+openapi: 3.0.0
+info:
+  title: BirdsOS GPIO API
+  description: API for controlling GPIO pins on Raspberry Pi
+  version: 1.0.0
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+paths:
+  /gpio/api/pins:
+    get:
+      summary: Get available GPIO pins
+      description: Returns a list of all available GPIO pins and their current states
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  pins:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        number:
+                          type: integer
+                          description: GPIO pin number
+                        mode:
+                          type: string
+                          enum: [IN, OUT]
+                          description: Current pin mode
+                        state:
+                          type: integer
+                          enum: [0, 1]
+                          description: Current pin state
+                        configured:
+                          type: boolean
+                          description: Whether the pin is configured
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /gpio/api/configure:
+    post:
+      summary: Configure GPIO pin mode
+      description: Set a GPIO pin as input or output
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pin
+                - mode
+              properties:
+                pin:
+                  type: integer
+                  description: GPIO pin number
+                mode:
+                  type: string
+                  enum: [IN, OUT]
+                  description: Desired pin mode
+      responses:
+        '200':
+          description: Pin configured successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  pin:
+                    type: integer
+                  mode:
+                    type: string
+                    enum: [IN, OUT]
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /gpio/api/state:
+    post:
+      summary: Set GPIO pin state
+      description: Set the state of an output GPIO pin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pin
+                - state
+              properties:
+                pin:
+                  type: integer
+                  description: GPIO pin number
+                state:
+                  type: integer
+                  enum: [0, 1]
+                  description: Desired pin state
+      responses:
+        '200':
+          description: State set successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  pin:
+                    type: integer
+                  state:
+                    type: integer
+                    enum: [0, 1]
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /gpio/api/cleanup:
+    post:
+      summary: Clean up GPIO resources
+      description: Reset all GPIO pins and clean up resources
+      responses:
+        '200':
+          description: Cleanup successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  message:
+                    type: string
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [error]
+        message:
+          type: string
+          description: Error message
+
+  parameters:
+    PinNumber:
+      name: pin
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 2
+        maximum: 27
+      description: GPIO pin number
+
+tags:
+  - name: GPIO
+    description: GPIO control operations 
