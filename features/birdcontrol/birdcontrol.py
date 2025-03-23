@@ -19,16 +19,19 @@ class BirdControl:
         self.timeout = MOTOR_CONFIG['MAX_ON_TIME']
 
         def callback(pin: int, state: int) -> None:
-            logger.debug(f"Gate {pin} state changed to {state}, RÜTTELN!!")
+            logger.debug(f"Callback triggerd. Pin {pin} state changed to {state}")
             if pin == self.start_pin:
                 if not self.is_running:
+                    logger.debug(f"RÜTTELN!!")
                     self.motors.turn_on()
                     time.sleep(self.timeout)
+                    logger.debug(f"RUHE IN DER KISTE!!")
                     self.motors.turn_off()
                     self.is_running = False
             elif pin == self.end_pin:
                 self.motors.turn_off()
                 self.is_running = False
+                logger.debug(f"RUHE IN DER KISTE!!")
         self.optical_gates = OpticalGates(callback=callback)
         logger.info("System initialized and ready")
         
@@ -51,3 +54,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
